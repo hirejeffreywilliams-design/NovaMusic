@@ -47,7 +47,12 @@ function formatTime(seconds: number): string {
 }
 
 const HOTCUE_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6"];
-const LOOP_BEATS = [2, 4, 8, 16];
+const LOOP_BEATS = [0.5, 1, 2, 4, 8, 16];
+
+function formatLoopLabel(beats: number): string {
+  if (beats === 0.5) return "1/2";
+  return String(beats);
+}
 
 export function Deck({
   which, state, color, proMode, bpm,
@@ -89,7 +94,7 @@ export function Deck({
           {state.loop.active && (
             <Badge variant="outline" className="text-xs" data-testid={`badge-loop-${which}`}>
               <Repeat className="w-3 h-3 mr-1" />
-              {state.loop.beats}
+              {formatLoopLabel(state.loop.beats)}
             </Badge>
           )}
           {analysis && (
@@ -141,11 +146,13 @@ export function Deck({
               loopEnd={state.loop.end}
               loopActive={state.loop.active}
               cuePoint={state.cuePoint}
+              beatGrid={state.beatGrid}
+              proMode={proMode}
               onSeek={(t) => onSeek(which, t)}
             />
           </div>
           {proMode && (
-            <div className="h-[72px] flex-shrink-0">
+            <div className="h-[80px] flex-shrink-0">
               <VUMeter level={state.vuLevel} color={color} orientation="vertical" />
             </div>
           )}
@@ -208,28 +215,31 @@ export function Deck({
         </div>
 
         {proMode && (
-          <div className="flex items-center gap-2 flex-wrap" data-testid={`hotcues-${which}`}>
-            {[0, 1, 2, 3].map((i) => (
-              <Button
-                key={i}
-                size="sm"
-                variant={state.hotCues[i] ? "secondary" : "ghost"}
-                className="text-xs font-mono w-9"
-                style={state.hotCues[i] ? { borderColor: HOTCUE_COLORS[i], borderWidth: "2px" } : {}}
-                onClick={() => state.hotCues[i] ? onJumpHotCue(which, i) : onSetHotCue(which, i)}
-                onContextMenu={(e) => { e.preventDefault(); onSetHotCue(which, i); }}
-                disabled={!state.buffer}
-                data-testid={`button-hotcue-${which}-${i}`}
-              >
-                {i + 1}
-              </Button>
-            ))}
+          <div className="flex items-center gap-1 flex-wrap" data-testid={`hotcues-${which}`}>
+            {[0, 1, 2, 3].map((i) => {
+              const cue = state.hotCues[i];
+              return (
+                <Button
+                  key={i}
+                  size="sm"
+                  variant={cue ? "secondary" : "ghost"}
+                  className="text-xs font-mono w-auto min-w-[2rem]"
+                  style={cue ? { borderColor: HOTCUE_COLORS[i], borderWidth: "2px" } : {}}
+                  onClick={() => cue ? onJumpHotCue(which, i) : onSetHotCue(which, i)}
+                  onContextMenu={(e) => { e.preventDefault(); onSetHotCue(which, i); }}
+                  disabled={!state.buffer}
+                  data-testid={`button-hotcue-${which}-${i}`}
+                >
+                  {cue?.label || String(i + 1)}
+                </Button>
+              );
+            })}
           </div>
         )}
 
         {proMode && (
-          <div className="flex items-center gap-2 flex-wrap" data-testid={`loops-${which}`}>
-            <Repeat className="w-3.5 h-3.5 text-muted-foreground" />
+          <div className="flex items-center gap-1 flex-wrap" data-testid={`loops-${which}`}>
+            <Repeat className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
             {LOOP_BEATS.map((beats) => (
               <Button
                 key={beats}
@@ -240,7 +250,7 @@ export function Deck({
                 disabled={!state.buffer}
                 data-testid={`button-loop-${which}-${beats}`}
               >
-                {beats}
+                {formatLoopLabel(beats)}
               </Button>
             ))}
           </div>

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a browser-based professional 2-deck DJ mixer application with Beginner and Pro modes. It provides real-time audio crossfading, 3-band EQ, audio effects (reverb/delay/filter), loop controls, hotcue points, waveform visualization with beat markers, VU meters, BPM/key detection, mix recording, and BPM-aware auto-mix — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides mix suggestion and analysis endpoints.
+This is a browser-based professional 2-deck DJ mixer application with Beginner and Pro modes. It provides real-time audio crossfading, 3-band EQ, audio effects (reverb/delay/filter), loop controls (including micro-loops at 0.5/1/2/4/8/16 beats), hotcue points with intelligent auto-placement (detects intro/build/drop/outro), waveform visualization with zoom (1x-16x) and beat grid markers, VU meters, BPM/key detection with harmonic compatibility analysis (Camelot wheel), mix recording, BPM-aware auto-mix, 8-pad sampler with built-in synthesized samples, beat-phase alignment indicator, keyboard shortcuts for pro controls, and beginner coaching tips — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides mix suggestion and analysis endpoints.
 
 ## User Preferences
 

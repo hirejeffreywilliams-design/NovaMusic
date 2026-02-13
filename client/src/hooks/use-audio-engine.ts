@@ -30,6 +30,12 @@ export interface HotCue {
   color: string;
 }
 
+export interface SamplePad {
+  name: string;
+  buffer: AudioBuffer | null;
+  color: string;
+}
+
 export interface DeckState {
   buffer: AudioBuffer | null;
   isPlaying: boolean;
@@ -46,6 +52,7 @@ export interface DeckState {
   loop: LoopState;
   hotCues: (HotCue | null)[];
   vuLevel: number;
+  beatGrid: number[];
 }
 
 const defaultEQ: EQState = { low: 0, mid: 0, high: 0 };
@@ -77,6 +84,7 @@ const defaultDeckState: DeckState = {
   loop: { ...defaultLoop },
   hotCues: [null, null, null, null],
   vuLevel: 0,
+  beatGrid: [],
 };
 
 interface DeckNodes {
@@ -107,6 +115,78 @@ function createImpulseResponse(ctx: AudioContext, duration: number, decay: numbe
   return impulse;
 }
 
+function generateBeatGrid(bpm: number, duration: number): number[] {
+  if (bpm <= 0 || duration <= 0) return [];
+  const interval = 60 / bpm;
+  const beats: number[] = [];
+  for (let t = 0; t < duration; t += interval) {
+    beats.push(t);
+  }
+  return beats;
+}
+
+function detectLandmarks(data: Float32Array, sampleRate: number, bpm: number): (HotCue | null)[] {
+  const colors = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6"];
+  const labels = ["INTRO", "BUILD", "DROP", "OUTRO"];
+  const duration = data.length / sampleRate;
+
+  const segSize = Math.floor(data.length / 32);
+  const energies: number[] = [];
+  for (let i = 0; i < 32; i++) {
+    let energy = 0;
+    for (let j = 0; j < segSize; j++) {
+      const idx = i * segSize + j;
+      if (idx < data.length) energy += data[idx] * data[idx];
+    }
+    energies.push(energy / segSize);
+  }
+
+  const maxE = Math.max(...energies);
+  if (maxE === 0) return [null, null, null, null];
+  const norm = energies.map(e => e / maxE);
+
+  let introPos = 0;
+  for (let i = 0; i < 8; i++) {
+    if (norm[i] > 0.1) {
+      introPos = (i * segSize) / sampleRate;
+      break;
+    }
+  }
+
+  let dropPos = duration * 0.3;
+  let maxJump = 0;
+  for (let i = 1; i < norm.length; i++) {
+    const jump = norm[i] - norm[i - 1];
+    if (jump > maxJump) {
+      maxJump = jump;
+      dropPos = (i * segSize) / sampleRate;
+    }
+  }
+
+  let buildPos = Math.max(0, dropPos - (bpm > 0 ? (60 / bpm) * 16 : 8));
+
+  let outroPos = duration * 0.85;
+  for (let i = norm.length - 1; i >= norm.length - 8; i--) {
+    if (i >= 0 && norm[i] < 0.2) {
+      outroPos = (i * segSize) / sampleRate;
+      break;
+    }
+  }
+
+  const beatSnap = bpm > 0 ? 60 / bpm : 0;
+  const snap = (t: number) => {
+    if (beatSnap <= 0) return t;
+    return Math.round(t / beatSnap) * beatSnap;
+  };
+
+  return [
+    { position: snap(introPos), label: labels[0], color: colors[0] },
+    { position: snap(buildPos), label: labels[1], color: colors[1] },
+    { position: snap(dropPos), label: labels[2], color: colors[2] },
+    { position: snap(outroPos), label: labels[3], color: colors[3] },
+  ];
+}
+
 export function useAudioEngine() {
   const ctxRef = useRef<AudioContext | null>(null);
   const masterRef = useRef<GainNode | null>(null);
@@ -127,6 +207,16 @@ export function useAudioEngine() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [autoMixing, setAutoMixing] = useState(false);
+  const [samplePads, setSamplePads] = useState<SamplePad[]>([
+    { name: "Kick", buffer: null, color: "#ef4444" },
+    { name: "Snare", buffer: null, color: "#f59e0b" },
+    { name: "HiHat", buffer: null, color: "#22c55e" },
+    { name: "Clap", buffer: null, color: "#3b82f6" },
+    { name: "Air Horn", buffer: null, color: "#a855f7" },
+    { name: "Riser", buffer: null, color: "#ec4899" },
+    { name: "Impact", buffer: null, color: "#14b8a6" },
+    { name: "Vocal", buffer: null, color: "#f97316" },
+  ]);
 
   const createDeckNodes = useCallback((ctx: AudioContext): DeckNodes => {
     const gain = ctx.createGain();
@@ -222,9 +312,140 @@ export function useAudioEngine() {
 
       destRef.current = ctxRef.current.createMediaStreamDestination();
       masterRef.current.connect(destRef.current);
+
+      generateBuiltInSamples(ctxRef.current);
     }
     return ctxRef.current;
   }, [createDeckNodes, connectDeckChain]);
+
+  const generateBuiltInSamples = useCallback((ctx: AudioContext) => {
+    const sr = ctx.sampleRate;
+
+    const createSample = (fn: (sr: number) => AudioBuffer, index: number) => {
+      const buf = fn(sr);
+      setSamplePads(prev => {
+        const next = [...prev];
+        next[index] = { ...next[index], buffer: buf };
+        return next;
+      });
+    };
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.15, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const freq = 60 * Math.exp(-t * 30);
+        d[i] = Math.sin(2 * Math.PI * freq * t) * Math.exp(-t * 15) * 0.8;
+      }
+      return buf;
+    }, 0);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.12, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        d[i] = ((Math.random() * 2 - 1) * 0.6 + Math.sin(2 * Math.PI * 200 * t) * 0.3) * Math.exp(-t * 20);
+      }
+      return buf;
+    }, 1);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.05, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        d[i] = (Math.random() * 2 - 1) * Math.exp(-t * 60) * 0.5;
+        if (t < 0.002) d[i] *= t / 0.002;
+      }
+      return buf;
+    }, 2);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.1, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        d[i] = (Math.random() * 2 - 1) * 0.5 * Math.exp(-t * 25);
+        d[i] += Math.sin(2 * Math.PI * 1200 * t) * 0.2 * Math.exp(-t * 30);
+      }
+      return buf;
+    }, 3);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.5, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const freq = 400 + 200 * Math.sin(2 * Math.PI * 8 * t);
+        d[i] = Math.sin(2 * Math.PI * freq * t) * (t < 0.4 ? 0.7 : 0.7 * Math.exp(-(t - 0.4) * 20));
+      }
+      return buf;
+    }, 4);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 1.5, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const freq = 200 + 2000 * (t / 1.5);
+        d[i] = Math.sin(2 * Math.PI * freq * t) * 0.4 * (t / 1.5);
+        d[i] += (Math.random() * 2 - 1) * 0.05 * (t / 1.5);
+      }
+      return buf;
+    }, 5);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.3, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        d[i] = (Math.random() * 2 - 1) * 0.8 * Math.exp(-t * 8);
+        d[i] += Math.sin(2 * Math.PI * 40 * t) * 0.5 * Math.exp(-t * 5);
+      }
+      return buf;
+    }, 6);
+
+    createSample((sr) => {
+      const buf = ctx.createBuffer(1, sr * 0.4, sr);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i / sr;
+        const formant1 = Math.sin(2 * Math.PI * 800 * t);
+        const formant2 = Math.sin(2 * Math.PI * 1200 * t) * 0.5;
+        const formant3 = Math.sin(2 * Math.PI * 2500 * t) * 0.25;
+        const vibrato = Math.sin(2 * Math.PI * 5 * t) * 0.02;
+        d[i] = (formant1 + formant2 + formant3) * (1 + vibrato) * Math.exp(-t * 4) * 0.3;
+      }
+      return buf;
+    }, 7);
+  }, []);
+
+  const playSample = useCallback((index: number) => {
+    const ctx = getCtx();
+    const pad = samplePads[index];
+    if (!pad?.buffer || !masterRef.current) return;
+
+    const src = ctx.createBufferSource();
+    src.buffer = pad.buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.7;
+    src.connect(gain);
+    gain.connect(masterRef.current);
+    src.start();
+  }, [getCtx, samplePads]);
+
+  const loadSampleFile = useCallback(async (index: number, file: File) => {
+    const ctx = getCtx();
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = await ctx.decodeAudioData(arrayBuffer);
+    setSamplePads(prev => {
+      const next = [...prev];
+      next[index] = { ...next[index], buffer, name: file.name.replace(/\.[^.]+$/, "") };
+      return next;
+    });
+  }, [getCtx]);
 
   const generateWaveform = useCallback((buffer: AudioBuffer): number[] => {
     const rawData = buffer.getChannelData(0);
@@ -258,6 +479,7 @@ export function useAudioEngine() {
       hotCues: [null, null, null, null],
       loop: { ...defaultLoop },
       cuePoint: 0,
+      beatGrid: [],
     }));
     offsetRefs.current[which] = 0;
   }, [getCtx, generateWaveform]);
@@ -436,6 +658,12 @@ export function useAudioEngine() {
     });
   }, [getCtx, deckA, deckB]);
 
+  const setAutoHotCues = useCallback((which: "A" | "B", data: Float32Array, sampleRate: number, bpm: number) => {
+    const setter = which === "A" ? setDeckA : setDeckB;
+    const landmarks = detectLandmarks(data, sampleRate, bpm);
+    setter((prev) => ({ ...prev, hotCues: landmarks }));
+  }, []);
+
   const jumpHotCue = useCallback((which: "A" | "B", index: number) => {
     const state = which === "A" ? deckA : deckB;
     const cue = state.hotCues[index];
@@ -448,7 +676,7 @@ export function useAudioEngine() {
     const state = which === "A" ? deckA : deckB;
     const setter = which === "A" ? setDeckA : setDeckB;
 
-    if (state.loop.active) {
+    if (state.loop.active && state.loop.beats === beats) {
       setter((prev) => ({ ...prev, loop: { ...prev.loop, active: false } }));
       if (loopTimeoutRef.current[which]) {
         clearTimeout(loopTimeoutRef.current[which]!);
@@ -471,6 +699,14 @@ export function useAudioEngine() {
       loop: { active: true, start: currentPos, end: loopEnd, beats },
     }));
   }, [getCtx, deckA, deckB]);
+
+  const setBeatGrid = useCallback((which: "A" | "B", bpm: number) => {
+    const state = which === "A" ? deckA : deckB;
+    const setter = which === "A" ? setDeckA : setDeckB;
+    if (!state.buffer) return;
+    const grid = generateBeatGrid(bpm, state.duration);
+    setter((prev) => ({ ...prev, beatGrid: grid }));
+  }, [deckA, deckB]);
 
   const updateCrossfade = useCallback((val: number) => {
     setCrossfade(val);
@@ -600,13 +836,16 @@ export function useAudioEngine() {
   return {
     deckA, deckB,
     crossfade, isRecording, recordingUrl, autoMixing,
+    samplePads,
     loadFile, playDeck, pauseDeck,
     setRate, setVolume,
     setCue, jumpCue, seekDeck,
     setEQ, setFilter, toggleFilter, setReverb, setDelay,
-    setHotCue, jumpHotCue, toggleLoop,
+    setHotCue, setAutoHotCues, jumpHotCue, toggleLoop,
+    setBeatGrid,
     updateCrossfade,
     startRecording, stopRecording,
     autoMix, getCtx,
+    playSample, loadSampleFile,
   };
 }

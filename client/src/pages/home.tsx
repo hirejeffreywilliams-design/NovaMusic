@@ -1,14 +1,30 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { Deck } from "@/components/deck";
 import { Mixer } from "@/components/mixer";
+import { Sampler } from "@/components/sampler";
+import { PhaseMeter } from "@/components/phase-meter";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Disc3, Zap, Settings2 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Disc3, Zap, Settings2, Keyboard, HelpCircle } from "lucide-react";
 
 const DECK_A_COLOR = "hsl(262, 83%, 58%)";
 const DECK_B_COLOR = "hsl(340, 75%, 55%)";
+
+const COACHING_TIPS = [
+  "Load a track to each deck, then hit Analyze to detect BPM and key",
+  "Match BPMs using the tempo slider before transitioning between tracks",
+  "Use the crossfader to smoothly blend from Deck A to Deck B",
+  "Hit Record to capture your mix, then download it when done",
+  "Switch to Pro Mode for EQ, effects, loops, and hotcue controls",
+  "Try Auto-Mix for an automatic beat-synced transition",
+];
 
 export default function Home() {
   const engine = useAudioEngine();
@@ -17,6 +33,8 @@ export default function Home() {
   const [analysisB, setAnalysisB] = useState<{ bpm: number; key: string } | null>(null);
   const [analyzingA, setAnalyzingA] = useState(false);
   const [analyzingB, setAnalyzingB] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [coachingTip, setCoachingTip] = useState(0);
 
   const handleAnalyze = useCallback(async (which: "A" | "B") => {
     const state = which === "A" ? engine.deckA : engine.deckB;
@@ -39,12 +57,82 @@ export default function Home() {
       const key = detectKey(channelData, rendered.sampleRate);
 
       resultSetter({ bpm, key });
+      engine.setBeatGrid(which, bpm);
+      engine.setAutoHotCues(which, channelData, rendered.sampleRate, bpm);
     } catch (err) {
       console.error("Analysis failed:", err);
     } finally {
       setter(false);
     }
-  }, [engine.deckA, engine.deckB]);
+  }, [engine.deckA, engine.deckB, engine.setBeatGrid, engine.setAutoHotCues]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      switch (e.key.toLowerCase()) {
+        case "q":
+          engine.deckA.isPlaying ? engine.pauseDeck("A") : engine.playDeck("A");
+          e.preventDefault();
+          break;
+        case "w":
+          engine.setCue("A");
+          e.preventDefault();
+          break;
+        case "e":
+          engine.jumpCue("A");
+          e.preventDefault();
+          break;
+        case "p":
+          engine.deckB.isPlaying ? engine.pauseDeck("B") : engine.playDeck("B");
+          e.preventDefault();
+          break;
+        case "o":
+          engine.setCue("B");
+          e.preventDefault();
+          break;
+        case "i":
+          engine.jumpCue("B");
+          e.preventDefault();
+          break;
+        case "1":
+        case "2":
+        case "3":
+        case "4":
+          engine.jumpHotCue("A", parseInt(e.key) - 1);
+          e.preventDefault();
+          break;
+        case "7":
+        case "8":
+        case "9":
+        case "0":
+          engine.jumpHotCue("B", e.key === "0" ? 3 : parseInt(e.key) - 7);
+          e.preventDefault();
+          break;
+        case "r":
+          engine.isRecording ? engine.stopRecording() : engine.startRecording();
+          e.preventDefault();
+          break;
+        case " ":
+          e.preventDefault();
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [engine]);
+
+  useEffect(() => {
+    if (!proMode) {
+      const interval = setInterval(() => {
+        setCoachingTip(t => (t + 1) % COACHING_TIPS.length);
+      }, 8000);
+      return () => clearInterval(interval);
+    }
+  }, [proMode]);
+
+  const showPhase = analysisA && analysisB;
 
   return (
     <div className="min-h-screen bg-background">
@@ -60,6 +148,21 @@ export default function Home() {
             </Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {proMode && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="icon"
+                    variant={showShortcuts ? "secondary" : "ghost"}
+                    onClick={() => setShowShortcuts(!showShortcuts)}
+                    data-testid="button-shortcuts"
+                  >
+                    <Keyboard className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Keyboard Shortcuts</TooltipContent>
+              </Tooltip>
+            )}
             <Button
               size="sm"
               variant={proMode ? "default" : "outline"}
@@ -74,7 +177,30 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-4">
+        {!proMode && (
+          <div className="flex items-center gap-2 p-3 rounded-md bg-muted/50 border border-border/50" data-testid="coaching-tip">
+            <HelpCircle className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <span className="text-sm text-muted-foreground">{COACHING_TIPS[coachingTip]}</span>
+          </div>
+        )}
+
+        {showShortcuts && proMode && (
+          <div className="p-3 rounded-md bg-muted/50 border border-border/50 text-xs font-mono text-muted-foreground" data-testid="shortcuts-panel">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-6 gap-y-1">
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">Q</kbd> Play/Pause A</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">P</kbd> Play/Pause B</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">W</kbd> Set Cue A</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">O</kbd> Set Cue B</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">E</kbd> Jump Cue A</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">I</kbd> Jump Cue B</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">1-4</kbd> Hotcues A</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">7-0</kbd> Hotcues B</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">R</kbd> Rec Toggle</span>
+            </div>
+          </div>
+        )}
+
         <div className="flex flex-col lg:flex-row gap-4" data-testid="decks-container">
           <Deck
             which="A"
@@ -131,6 +257,19 @@ export default function Home() {
           />
         </div>
 
+        {showPhase && (
+          <PhaseMeter
+            bpmA={analysisA?.bpm || null}
+            bpmB={analysisB?.bpm || null}
+            keyA={analysisA?.key || null}
+            keyB={analysisB?.key || null}
+            currentTimeA={engine.deckA.currentTime}
+            currentTimeB={engine.deckB.currentTime}
+            rateA={engine.deckA.playbackRate}
+            rateB={engine.deckB.playbackRate}
+          />
+        )}
+
         <Mixer
           crossfade={engine.crossfade}
           onCrossfadeChange={engine.updateCrossfade}
@@ -144,6 +283,14 @@ export default function Home() {
           vuA={engine.deckA.vuLevel}
           vuB={engine.deckB.vuLevel}
         />
+
+        {proMode && (
+          <Sampler
+            pads={engine.samplePads}
+            onPlaySample={engine.playSample}
+            onLoadSample={engine.loadSampleFile}
+          />
+        )}
       </main>
     </div>
   );
