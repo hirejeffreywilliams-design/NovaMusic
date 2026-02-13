@@ -1,16 +1,16 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import type { FXState } from "@/hooks/use-audio-engine";
+import type { FXState, DeckId } from "@/hooks/use-audio-engine";
 import { Waves, Timer, SlidersHorizontal } from "lucide-react";
 
 interface FXRackProps {
-  which: "A" | "B";
+  which: DeckId;
   fx: FXState;
-  onToggleFilter: (which: "A" | "B", enabled: boolean) => void;
-  onSetFilter: (which: "A" | "B", freq: number, type: "lowpass" | "highpass") => void;
-  onSetReverb: (which: "A" | "B", mix: number, enabled: boolean) => void;
-  onSetDelay: (which: "A" | "B", time: number, feedback: number, enabled: boolean) => void;
+  onToggleFilter: (which: DeckId, enabled: boolean) => void;
+  onSetFilter: (which: DeckId, freq: number, type: "lowpass" | "highpass") => void;
+  onSetReverb: (which: DeckId, mix: number, enabled: boolean) => void;
+  onSetDelay: (which: DeckId, time: number, feedback: number, enabled: boolean) => void;
 }
 
 export function FXRack({ which, fx, onToggleFilter, onSetFilter, onSetReverb, onSetDelay }: FXRackProps) {

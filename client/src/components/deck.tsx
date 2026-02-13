@@ -7,37 +7,40 @@ import { Waveform } from "./waveform";
 import { VUMeter } from "./vu-meter";
 import { EQKnob } from "./eq-knob";
 import { FXRack } from "./fx-rack";
-import type { DeckState } from "@/hooks/use-audio-engine";
+import { JogWheel } from "./jog-wheel";
+import type { DeckState, DeckId } from "@/hooks/use-audio-engine";
 import {
   Play, Pause, Upload, Disc3, Gauge, Navigation, SkipBack,
-  Activity, Loader2, Volume2, Repeat,
+  Activity, Loader2, Volume2, Repeat, Layers, Music,
 } from "lucide-react";
 
 interface DeckProps {
-  which: "A" | "B";
+  which: DeckId;
   state: DeckState;
   color: string;
   proMode: boolean;
   bpm: number | null;
-  onLoadFile: (file: File, which: "A" | "B") => void;
-  onPlay: (which: "A" | "B") => void;
-  onPause: (which: "A" | "B") => void;
-  onSetRate: (which: "A" | "B", rate: number) => void;
-  onSetVolume: (which: "A" | "B", vol: number) => void;
-  onSetCue: (which: "A" | "B") => void;
-  onJumpCue: (which: "A" | "B") => void;
-  onSeek: (which: "A" | "B", time: number) => void;
-  onSetEQ: (which: "A" | "B", band: "low" | "mid" | "high", value: number) => void;
-  onSetHotCue: (which: "A" | "B", index: number) => void;
-  onJumpHotCue: (which: "A" | "B", index: number) => void;
-  onToggleLoop: (which: "A" | "B", beats: number, bpm: number) => void;
-  onToggleFilter: (which: "A" | "B", enabled: boolean) => void;
-  onSetFilter: (which: "A" | "B", freq: number, type: "lowpass" | "highpass") => void;
-  onSetReverb: (which: "A" | "B", mix: number, enabled: boolean) => void;
-  onSetDelay: (which: "A" | "B", time: number, feedback: number, enabled: boolean) => void;
+  onLoadFile: (file: File, which: DeckId) => void;
+  onPlay: (which: DeckId) => void;
+  onPause: (which: DeckId) => void;
+  onSetRate: (which: DeckId, rate: number) => void;
+  onSetVolume: (which: DeckId, vol: number) => void;
+  onSetCue: (which: DeckId) => void;
+  onJumpCue: (which: DeckId) => void;
+  onSeek: (which: DeckId, time: number) => void;
+  onSetEQ: (which: DeckId, band: "low" | "mid" | "high", value: number) => void;
+  onSetHotCue: (which: DeckId, index: number) => void;
+  onJumpHotCue: (which: DeckId, index: number) => void;
+  onToggleLoop: (which: DeckId, beats: number, bpm: number) => void;
+  onToggleFilter: (which: DeckId, enabled: boolean) => void;
+  onSetFilter: (which: DeckId, freq: number, type: "lowpass" | "highpass") => void;
+  onSetReverb: (which: DeckId, mix: number, enabled: boolean) => void;
+  onSetDelay: (which: DeckId, time: number, feedback: number, enabled: boolean) => void;
   analysis: { bpm: number; key: string } | null;
   analyzing: boolean;
-  onAnalyze: (which: "A" | "B") => void;
+  onAnalyze: (which: DeckId) => void;
+  onSetStemGain?: (which: DeckId, stem: "bass" | "mid" | "high" | "vocals", gain: number) => void;
+  onToggleStems?: (which: DeckId, enabled: boolean) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -48,6 +51,7 @@ function formatTime(seconds: number): string {
 
 const HOTCUE_COLORS = ["#ef4444", "#f59e0b", "#22c55e", "#3b82f6"];
 const LOOP_BEATS = [0.5, 1, 2, 4, 8, 16];
+const STEM_COLORS = { bass: "#ef4444", mid: "#f59e0b", high: "#22c55e", vocals: "#a855f7" };
 
 function formatLoopLabel(beats: number): string {
   if (beats === 0.5) return "1/2";
@@ -61,6 +65,7 @@ export function Deck({
   onSetEQ, onSetHotCue, onJumpHotCue, onToggleLoop,
   onToggleFilter, onSetFilter, onSetReverb, onSetDelay,
   analysis, analyzing, onAnalyze,
+  onSetStemGain, onToggleStems,
 }: DeckProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -71,6 +76,17 @@ export function Deck({
 
   const ratePercent = Math.round((state.playbackRate - 1) * 100);
   const effectiveBpm = bpm ? Math.round(bpm * state.playbackRate) : null;
+
+  const handleJogScrub = (delta: number) => {
+    const newTime = Math.max(0, Math.min(state.duration, state.currentTime + delta));
+    onSeek(which, newTime);
+  };
+
+  const handleJogNudge = (direction: number) => {
+    const nudgeAmount = 0.02;
+    const newRate = Math.max(0.5, Math.min(1.5, state.playbackRate + direction * nudgeAmount));
+    onSetRate(which, newRate);
+  };
 
   return (
     <Card className="flex-1 min-w-0 bg-card/80 backdrop-blur-sm" data-testid={`deck-${which}`}>
@@ -95,6 +111,12 @@ export function Deck({
             <Badge variant="outline" className="text-xs" data-testid={`badge-loop-${which}`}>
               <Repeat className="w-3 h-3 mr-1" />
               {formatLoopLabel(state.loop.beats)}
+            </Badge>
+          )}
+          {state.stemsEnabled && (
+            <Badge variant="outline" className="text-xs">
+              <Layers className="w-3 h-3 mr-1" />
+              Stems
             </Badge>
           )}
           {analysis && (
@@ -158,14 +180,35 @@ export function Deck({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <span className="text-xs font-mono text-muted-foreground" data-testid={`text-time-${which}`}>
-            {formatTime(state.currentTime)} / {formatTime(state.duration)}
-          </span>
-          {proMode && (
-            <VUMeter level={state.vuLevel} color={color} orientation="horizontal" />
-          )}
-        </div>
+        {proMode && (
+          <div className="flex items-center gap-3">
+            <JogWheel
+              isPlaying={state.isPlaying}
+              color={color}
+              currentTime={state.currentTime}
+              bpm={bpm}
+              onScrub={handleJogScrub}
+              onNudge={handleJogNudge}
+              data-testid={`jog-wheel-${which}`}
+            />
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="text-xs font-mono text-muted-foreground" data-testid={`text-time-${which}`}>
+                  {formatTime(state.currentTime)} / {formatTime(state.duration)}
+                </span>
+                <VUMeter level={state.vuLevel} color={color} orientation="horizontal" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {!proMode && (
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-xs font-mono text-muted-foreground" data-testid={`text-time-${which}`}>
+              {formatTime(state.currentTime)} / {formatTime(state.duration)}
+            </span>
+          </div>
+        )}
 
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -318,6 +361,52 @@ export function Deck({
               label="High"
               color="#22c55e"
             />
+          </div>
+        )}
+
+        {proMode && onSetStemGain && onToggleStems && (
+          <div className="space-y-2" data-testid={`stems-${which}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Layers className="w-3.5 h-3.5" />
+                <span>Stems</span>
+              </div>
+              <Button
+                size="sm"
+                variant={state.stemsEnabled ? "default" : "ghost"}
+                className="text-[10px] h-6"
+                onClick={() => onToggleStems(which, !state.stemsEnabled)}
+                disabled={!state.buffer}
+                data-testid={`button-stems-toggle-${which}`}
+              >
+                {state.stemsEnabled ? "ON" : "OFF"}
+              </Button>
+            </div>
+            {state.stemsEnabled && (
+              <div className="grid grid-cols-4 gap-2">
+                {(["bass", "mid", "high", "vocals"] as const).map((stem) => (
+                  <div key={stem} className="space-y-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[10px] font-mono uppercase" style={{ color: STEM_COLORS[stem] }}>
+                        {stem === "vocals" ? <Music className="w-3 h-3 inline" /> : null}
+                        {stem}
+                      </span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {Math.round(state.stems[`${stem}Gain`] * 100)}%
+                      </span>
+                    </div>
+                    <Slider
+                      value={[state.stems[`${stem}Gain`]]}
+                      min={0}
+                      max={1}
+                      step={0.01}
+                      onValueChange={([v]) => onSetStemGain(which, stem, v)}
+                      data-testid={`slider-stem-${stem}-${which}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
