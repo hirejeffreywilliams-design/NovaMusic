@@ -3,13 +3,16 @@ import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { Deck } from "@/components/deck";
 import { Mixer } from "@/components/mixer";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Disc3 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Disc3, Zap, Settings2 } from "lucide-react";
 
 const DECK_A_COLOR = "hsl(262, 83%, 58%)";
 const DECK_B_COLOR = "hsl(340, 75%, 55%)";
 
 export default function Home() {
   const engine = useAudioEngine();
+  const [proMode, setProMode] = useState(false);
   const [analysisA, setAnalysisA] = useState<{ bpm: number; key: string } | null>(null);
   const [analysisB, setAnalysisB] = useState<{ bpm: number; key: string } | null>(null);
   const [analyzingA, setAnalyzingA] = useState(false);
@@ -52,27 +55,49 @@ export default function Home() {
               <Disc3 className="w-5 h-5" />
             </div>
             <h1 className="text-lg font-bold tracking-tight" data-testid="text-app-title">DJ Hybrid</h1>
+            <Badge variant="outline" className="text-[10px] font-mono">
+              2-Deck
+            </Badge>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-muted-foreground font-mono">2-Deck Mixer</span>
+            <Button
+              size="sm"
+              variant={proMode ? "default" : "outline"}
+              onClick={() => setProMode(!proMode)}
+              data-testid="button-mode-toggle"
+            >
+              {proMode ? <Settings2 className="w-3.5 h-3.5 mr-1.5" /> : <Zap className="w-3.5 h-3.5 mr-1.5" />}
+              {proMode ? "Pro Mode" : "Beginner"}
+            </Button>
             <ThemeToggle />
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 py-6 space-y-5">
         <div className="flex flex-col lg:flex-row gap-4" data-testid="decks-container">
           <Deck
             which="A"
             state={engine.deckA}
             color={DECK_A_COLOR}
+            proMode={proMode}
+            bpm={analysisA?.bpm || null}
             onLoadFile={engine.loadFile}
             onPlay={engine.playDeck}
             onPause={engine.pauseDeck}
             onSetRate={engine.setRate}
+            onSetVolume={engine.setVolume}
             onSetCue={engine.setCue}
             onJumpCue={engine.jumpCue}
             onSeek={engine.seekDeck}
+            onSetEQ={engine.setEQ}
+            onSetHotCue={engine.setHotCue}
+            onJumpHotCue={engine.jumpHotCue}
+            onToggleLoop={engine.toggleLoop}
+            onToggleFilter={engine.toggleFilter}
+            onSetFilter={engine.setFilter}
+            onSetReverb={engine.setReverb}
+            onSetDelay={engine.setDelay}
             analysis={analysisA}
             analyzing={analyzingA}
             onAnalyze={handleAnalyze}
@@ -82,13 +107,24 @@ export default function Home() {
             which="B"
             state={engine.deckB}
             color={DECK_B_COLOR}
+            proMode={proMode}
+            bpm={analysisB?.bpm || null}
             onLoadFile={engine.loadFile}
             onPlay={engine.playDeck}
             onPause={engine.pauseDeck}
             onSetRate={engine.setRate}
+            onSetVolume={engine.setVolume}
             onSetCue={engine.setCue}
             onJumpCue={engine.jumpCue}
             onSeek={engine.seekDeck}
+            onSetEQ={engine.setEQ}
+            onSetHotCue={engine.setHotCue}
+            onJumpHotCue={engine.jumpHotCue}
+            onToggleLoop={engine.toggleLoop}
+            onToggleFilter={engine.toggleFilter}
+            onSetFilter={engine.setFilter}
+            onSetReverb={engine.setReverb}
+            onSetDelay={engine.setDelay}
             analysis={analysisB}
             analyzing={analyzingB}
             onAnalyze={handleAnalyze}
@@ -103,8 +139,10 @@ export default function Home() {
           onStartRecording={engine.startRecording}
           onStopRecording={engine.stopRecording}
           autoMixing={engine.autoMixing}
-          onAutoMix={engine.autoMix}
+          onAutoMix={() => engine.autoMix(analysisA?.bpm, analysisB?.bpm)}
           hasBothDecks={!!engine.deckA.buffer && !!engine.deckB.buffer}
+          vuA={engine.deckA.vuLevel}
+          vuB={engine.deckB.vuLevel}
         />
       </main>
     </div>
@@ -162,7 +200,6 @@ function detectKey(data: Float32Array, sampleRate: number): string {
 
   for (let start = 0; start + fftSize < data.length; start += fftSize) {
     const segment = data.slice(start, start + fftSize);
-
     const windowed = new Float32Array(fftSize);
     for (let i = 0; i < fftSize; i++) {
       windowed[i] = segment[i] * (0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (fftSize - 1)));
@@ -183,11 +220,6 @@ function detectKey(data: Float32Array, sampleRate: number): string {
         }
       }
     }
-  }
-
-  let maxIdx = 0;
-  for (let i = 1; i < 12; i++) {
-    if (chromaBins[i] > chromaBins[maxIdx]) maxIdx = i;
   }
 
   const majorProfile = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];

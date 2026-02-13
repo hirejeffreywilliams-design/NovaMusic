@@ -1,0 +1,85 @@
+You are building an advanced hybrid DJ application with a polished, production-ready MVP and clear extension paths. The app must serve both absolute beginners (one-click friendly) and pro DJs (feature-complete virtual equipment, MIDI support, sample-accurate scheduling, and high-quality DSP). Use the provided starter code (frontend 2‑deck WebAudio + Wavesurfer UI, enhanced mixer app.js, backend FastAPI with /analyze, /separate, /mix-suggestion, Docker Compose, and MIDI-mapping demo) as the base. Read and understand those files and extend them as required.
+
+Primary goals
+- Create a seamless UX with two modes: Beginner Mode (automatic suggestions, one-click auto-mix, smart presets) and Pro Mode (4 decks optional, jog wheels, full mixer: crossfader, gain, 3-band EQ, filters, pitch/tempo, sync, cue/hotcues, loops, sampler, FX chain, MIDI mapping, VST/AU stub).
+- Make the app feel like real DJ hardware: sample-accurate scheduling, beatgrid/warp, high-quality time stretching, and pro-grade effects.
+- Provide strong AI assistance: BPM/key detection, beatgrid extraction, transition suggestion engine, auto-mix generation, stem separation (Demucs), mastering endpoint, and content-aware recommendations.
+- Offer both a built-in licensed music library (all major genres, with emphasis on R&B, hip-hop, and current popular tracks) and user uploads. Library must support search, curated playlists, recommendations, and legal/licensing safeguards.
+- Support recording/export of mixes, live streaming (ticketed rooms), collaboration (co-DJ), and social sharing.
+
+Functional requirements (summary)
+- Frontend:
+- Two-deck (expandable to 4) Web app using WebAudio, AudioWorklet, Wavesurfer for waveforms/regions, WASM for DSP if needed.
+- Beginner Mode: one-click analyze + auto-mix, suggested transitions, automatic cue/hotcue placements, preview & accept flow.
+- Pro Mode: pitch/tempo sliders, sample-accurate play/seek, EQ, filters, FX, precise loop/cue controls, MIDI learn and persistent mapping UI, waveform beatgrid editing.
+- Visuals: waveform + beatgrid, phase meters, BPM/key display, track-coloring to show harmonic clashes.
+- Recording: master mix export (WAV/MP3), separate stems export when available.
+- Backend (FastAPI):
+- /analyze (BPM/key/tempo/structure), /separate (Demucs integration), /mix-suggestion (bpm/key/transition plan), optional /beatgrid endpoint returning beat timestamps.
+- Job queue for heavy tasks (Celery/RQ + Redis), GPU worker pool for Demucs, and asynchronous notifications/webhooks for job completion.
+- Asset storage in S3-compatible storage with signed URLs, user authentication, quotas, and content moderation.
+- AI/ML:
+- Ensemble BPM detection (librosa/madmom), chroma/key estimation, structural segmentation (downbeats/sections).
+- Stem separation using Demucs (GPU recommended); fallback to Spleeter if needed.
+- Transition generator that outputs a timeline: start times, fade curvature, rate multipliers, effect parameters.
+- Recommendation engine for library playback (collaborative + content-based).
+- DevOps & infra:
+- Docker Compose for local dev; Docker/K8s for prod; CI/CD; monitoring, logging, cost monitoring (GPU jobs).
+- CORS, rate-limiting, antiviruses/scan on upload, DMCA/support flows.
+- Legal & monetization:
+- Music library licensing strategy, user upload policy, DMCA handling, watermarking live streams if necessary.
+- Monetization: freemium subscription, pay-per-use for heavy AI jobs, marketplace for packs/effects.
+
+Given the provided starter code files (frontend/index.html, styles.css, app.js; backend/app/main.py, requirements.txt, Dockerfile; docker-compose.yml; midi mapping demo), do the following tasks in order. For each task produce working code, tests, and short run instructions.
+
+1) Improve backend /mix-suggestion endpoint:
+- Return beat timestamps (beatgrid), downbeats, suggested cue points, suggested crossfade curve (linear/log), recommended FX chain (parameterized), rate multipliers for tempo sync, and confidence scores.
+- Ensure /analyze uses ensemble detection and returns section markers (intro/verse/chorus).
+
+2) Implement /beatgrid endpoint:
+- Use madmom or refined onset detectors to output accurate beat times and downbeat markers in seconds (JSON).
+
+3) Replace naive tempo adjustment on frontend with high-quality time-stretch:
+- Integrate SoundTouch (WASM or library), or a WASM-based phase vocoder, so pitch/tempo adjustments maintain audio quality and support wide ranges.
+- Ensure UI shows current BPM after rate change and recalculates beatgrid if necessary.
+
+4) Upgrade auto-mix algorithm:
+- Use beatgrid + section alignment to plan transitions that align on downbeats.
+- Generate a detailed timeline (start times, rate ramps, crossfade envelopes, effects) returned by backend /mix-suggestion; frontend must schedule the timeline with sample-accurate scheduling via AudioContext.
+- Provide an interactive timeline editor in UI to tweak transition points.
+
+5) Add stem separation pipeline:
+- Implement a job-worker that runs Demucs on uploaded tracks, uploads resulting stems to S3, and returns signed URLs.
+- Expose endpoint /separate-job to kick off job and /separate-status to poll results.
+
+6) Build library & recommendation integration:
+- Create a Music Library service (catalog DB) that holds metadata (BPM, key, energy, genres). Seed with a sample dataset emphasizing R&B and hip-hop (provide scripts to ingest metadata and audio).
+- Implement a recommendation endpoint that suggests next tracks based on harmonic compatibility, BPM/energy progression, and user history. Support filters by genre/label/explicitness.
+
+7) Improve frontend features and UX:
+- Beginner mode: single “Auto DJ” button that picks songs from library, creates smooth transitions, and lets users preview and accept.
+- Pro mode: full mapping of common hardware (Pioneer-style layout), channel meters, MIDI learn UI, effect racks, and support for 4 decks.
+- Add live streaming UI: start room, ticketing options, chat moderation.
+
+8) Productionize:
+- Add authentication (OAuth + JWT), role-based access (free vs pro DJs), rate-limits and quotas, signed URL storage, logging, metrics.
+- Create Dockerfiles and a production-ready docker-compose or Kubernetes manifests (include GPU scheduling for Demucs workers).
+
+Deliverables per task
+- Updated code (backend and frontend) with clear file diffs or full files.
+- Unit/integration tests for backend endpoints.
+- Example client code to call endpoints.
+- README with local dev and production deployment instructions.
+- A short QA checklist for audio sync, latency, and licensing verification.
+
+Tone/priority: focus on robust, production-applicable implementations. For audio scheduling and DSP prefer industry-tested libraries and sample-accurate techniques. Keep beginner UX friction very low, but ensure Pro features provide fine-grained control and hardware parity.
+
+Additional notes for implementer/AI:
+- When implementing library features, include a placeholder dataset (non-commercial) that mimics R&B and hip-hop tag distributions so demo recommendations look realistic.
+- Provide clear knobs for replacing placeholder library with real licensed content and call out licensing steps.
+- Make everything modular and easily replaceable: backend AI components (separation, beat detection) should be pluggable workers.
+- Emphasize performance (client-side mixing for low latency), and offload heavy ML to the backend asynchronously.
+
+Use the starter code as the foundation. If anything in the starter code is ambiguous or insufficient, propose minimal refactors and provide the exact code changes and migration steps.
+
+End of prompt.

@@ -1,10 +1,8 @@
-# DJ Hybrid Starter - 2-Deck Mixer
+# DJ Hybrid - Professional 2-Deck Mixer
 
 ## Overview
 
-This is a browser-based 2-deck DJ mixer application. It provides real-time audio crossfading, waveform visualization, BPM/key detection, and mix recording — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides a minimal file analysis endpoint (though audio analysis is preferred client-side for low latency).
-
-The app is an MVP scaffold inspired by a DJ mixing concept that originally targeted a FastAPI/Python backend with AI-powered stem separation (Demucs). This implementation uses a Node.js/Express backend with a React frontend instead.
+This is a browser-based professional 2-deck DJ mixer application with Beginner and Pro modes. It provides real-time audio crossfading, 3-band EQ, audio effects (reverb/delay/filter), loop controls, hotcue points, waveform visualization with beat markers, VU meters, BPM/key detection, mix recording, and BPM-aware auto-mix — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides mix suggestion and analysis endpoints.
 
 ## User Preferences
 
@@ -23,19 +21,22 @@ Preferred communication style: Simple, everyday language.
 - **Path Aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 
 Key custom components:
-- `Deck` (`client/src/components/deck.tsx`) - Individual DJ deck with play/pause, rate control, cue points, file loading, and waveform display
-- `Mixer` (`client/src/components/mixer.tsx`) - Crossfader, recording controls, and auto-mix functionality
-- `Waveform` (`client/src/components/waveform.tsx`) - Canvas-based waveform visualization with playback progress and seek support
+- `Deck` (`client/src/components/deck.tsx`) - Individual DJ deck with play/pause, rate control, cue points, hotcues, loop controls, EQ, FX rack, file loading, and waveform display. Supports Beginner/Pro mode toggle.
+- `Mixer` (`client/src/components/mixer.tsx`) - Crossfader with VU level indicators, recording controls, and BPM-aware auto-mix functionality
+- `Waveform` (`client/src/components/waveform.tsx`) - Canvas-based waveform visualization with playback progress, seek support, hotcue markers, loop regions, and cue point indicators
+- `VUMeter` (`client/src/components/vu-meter.tsx`) - Canvas-based segmented VU meter supporting vertical and horizontal orientations with color-coded levels
+- `EQKnob` (`client/src/components/eq-knob.tsx`) - Rotary knob control with drag-to-rotate interaction for EQ band adjustment
+- `FXRack` (`client/src/components/fx-rack.tsx`) - Audio effects panel with toggleable filter (LPF/HPF), reverb, and delay with parameter controls
 - `ThemeProvider` (`client/src/components/theme-provider.tsx`) - Dark/light theme toggle with localStorage persistence
 
 Key custom hooks:
-- `useAudioEngine` (`client/src/hooks/use-audio-engine.ts`) - Core audio engine using Web Audio API. Manages two decks (A & B), crossfading, playback control, recording via MediaRecorder, and analyzer nodes for visualization. This is where the main application logic lives.
+- `useAudioEngine` (`client/src/hooks/use-audio-engine.ts`) - Core audio engine using Web Audio API. Manages two decks (A & B) with full signal chain: source → 3-band EQ (low shelf/peaking/high shelf) → filter → delay (with feedback) → reverb (convolver) → gain → analyzer → master. Includes crossfading, playback control, loop management, hotcue storage, recording via MediaRecorder, VU metering, and BPM-aware auto-mix with smooth S-curve transitions.
 
 ### Backend
 
 - **Runtime**: Node.js with TypeScript (tsx for development, esbuild for production)
 - **Framework**: Express.js
-- **API**: Single endpoint `POST /api/analyze` for file upload analysis (currently returns a placeholder — real analysis happens client-side)
+- **API**: `POST /api/analyze` for file analysis (placeholder — real analysis happens client-side), `POST /api/mix-suggestion` for BPM/key-aware transition recommendations with harmonic compatibility (Camelot wheel)
 - **File Uploads**: Multer (stores to OS temp directory)
 - **Dev Server**: Vite dev server integrated as Express middleware with HMR
 - **Production**: Static file serving from `dist/public`
@@ -51,9 +52,13 @@ Key custom hooks:
 
 The core design decision is **client-side-first audio processing**:
 - Real-time mixing, crossfading, and playback use the Web Audio API directly in the browser for minimal latency
+- Full per-deck signal chain: source → 3-band EQ (BiquadFilter) → filter (LPF/HPF) → delay (with feedback loop) → reverb (ConvolverNode with generated impulse response) → gain → analyzer → master
 - BPM detection and key estimation run client-side using OfflineAudioContext
-- The server `/api/analyze` endpoint exists as a placeholder for future server-side processing (e.g., AI stem separation)
+- Loop controls use BPM-derived beat durations for beat-accurate loop lengths
+- VU metering uses AnalyserNode frequency data (RMS calculation)
+- BPM-aware auto-mix: tempo-syncs Deck B to Deck A, uses smooth S-curve crossfade aligned to beat grid, resets rate after transition
 - Mix recording uses MediaRecorder API capturing from a MediaStreamAudioDestinationNode
+- The server `/api/mix-suggestion` endpoint provides harmonic compatibility analysis using Camelot wheel mapping and transition recommendations
 
 ### Build System
 
