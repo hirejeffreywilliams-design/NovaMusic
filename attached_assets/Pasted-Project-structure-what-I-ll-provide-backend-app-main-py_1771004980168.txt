@@ -1,0 +1,918 @@
+Project structure (what I'll provide)
+- backend/
+- app/main.py (FastAPI endpoints: /analyze, /separate)
+- app/requirements.txt
+- Dockerfile (optional)
+- frontend/
+- index.html (UI with 2 decks, waveform display placeholder, simple controls)
+- app.js (WebAudio mixer, file upload, record/export, calls backend)
+- styles.css
+- README.md (quick run instructions + production checklist)
+
+Notes/assumptions
+- The demo is local-first: real-time mixing is client-side (low latency). Heavy AI (stem separation) runs on the backend.
+- Stem separation (Demucs) is optional. If you don’t want to install Demucs, the endpoint will still return BPM/key analysis; stem separation will return an error message until configured.
+- This is an MVP scaffold to expand: sync/warp improvements, UI polish, and full AI auto-mix logic are next steps.
+
+Backend (FastAPI)
+
+File: backend/app/main.py
+```python
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse, FileResponse
+import uvicorn
+import tempfile
+import os
+import subprocess
+import librosa
+import numpy as np
+import soundfile as sf
+
+app = FastAPI()
+
+def analyze_bpm_key(filepath):
+y, sr = librosa.load(filepath, sr=None, mono=True)
+# BPM
+tempo, beats = librosa.beat.beat_track(y=y, sr=sr)
+# Key estimation (simple: chroma & find max)
+chroma = librosa.feature.chroma_cens(y=y, sr=sr)
+chroma_mean = chroma.mean(axis=1)
+key_idx = int(np.argmax(chroma_mean))
+# Map index to note name (C, C#/Db, D, ...)
+notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+key = notes[key_idx]
+return {"bpm": float(tempo), "key": key}
+
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+suffix = os.path.splitext(file.filename)[1] or ".wav"
+with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+content = await file.read()
+tmp.write(content)
+tmp.flush()
+tmp_path = tmp.name
+try:
+result = analyze_bpm_key(tmp_path)
+return JSONResponse(content=result)
+except Exception as e:
+return JSONResponse(content={"error": str(e)}, status_code=500)
+finally:
+try:
+os.unlink(tmp_path)
+except: pass
+
+@app.post("/separate")
+async def separate(file: UploadFile = File(...)):
+"""
+Uses demucs to separate stems. Requires demucs installed in backend environment.
+Returns a ZIP of stems or path to stems. For simplicity returns JSON with status and file paths.
+"""
+suffix = os.path.splitext(file.filename)[1] or ".wav"
+with tempfile.TemporaryDirectory() as td:
+in_path = os.path.join(td, "input"+suffix)
+with open(in_path, "wb") as f:
+f.write(await file.read())
+out_dir = os.path.join(td, "separated")
+os.makedirs(out_dir, exist_ok=True)
+# Attempt to run demucs (ensure demucs is in PATH)
+cmd = ["demucs", "--two-stems=vocals", "-o", out_dir, in_path]
+try:
+subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+# Find produced files
+produced = []
+for root,_,files in os.walk(out_dir):
+for fn in files:
+if fn.endswith(".wav") or fn.endswith(".mp3"):
+produced.append(os.path.join(root,fn))
+return JSONResponse(content={"status":"done","files":produced})
+except subprocess.CalledProcessError as e:
+return JSONResponse(content={"error":"demucs failed","output": e.output.decode()}, status_code=500)
+except FileNotFoundError:
+return JSONResponse(content={"error":"demucs not installed on server"}, status_code=400)
+
+if __name__ == "__main__":
+uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+```
+
+File: backend/app/requirements.txt
+```
+fastapi
+uvicorn[standard]
+librosa
+soundfile
+numpy
+```
+(If you add Demucs: install demucs separately via `pip install demucs` or follow Demucs docs — GPU recommended for speed.)
+
+Optional Dockerfile (backend/Dockerfile)
+```
+FROM python:3.10-slim
+WORKDIR /app
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir -r app/requirements.txt
+# Optional: install demucs if desired (may increase image size)
+# RUN pip install demucs
+COPY app /app/app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+Frontend (browser-based 2-deck mixer)
+
+File: frontend/index.html
+```html
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>DJ Hybrid Starter</title>
+<link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<h1>DJ Hybrid Starter (2-Deck)</h1>
+<div id="controls">
+<div class="deck" id="deckA">
+<h3>Deck A</h3>
+<input type="file" id="fileA" accept="audio/*"/>
+<div>Play <button id="playA">Play</button> Pause <button id="pauseA">Pause</button></div>
+<label>Pitch/Tempo <input id="rateA" type="range" min="0.5" max="1.5" step="0.01" value="1"></label>
+<button id="cueA">Set Cue</button> <button id="jumpA">Jump Cue</button>
+<button id="analyzeA">Analyze (BPM/key)</button>
+<pre id="analysisA"></pre>
+</div>
+
+<div class="deck" id="deckB">
+<h3>Deck B</h3>
+<input type="file" id="fileB" accept="audio/*"/>
+<div>Play <button id="playB">Play</button> Pause <button id="pauseB">Pause</button></div>
+<label>Pitch/Tempo <input id="rateB" type="range" min="0.5" max="1.5" step="0.01" value="1"></label>
+<button id="cueB">Set Cue</button> <button id="jumpB">Jump Cue</button>
+<button id="analyzeB">Analyze (BPM/key)</button>
+<pre id="analysisB"></pre>
+</div>
+</div>
+
+<div id="mixer">
+<h3>Mixer</h3>
+<label>Crossfade <input id="cross" type="range" min="0" max="1" step="0.01" value="0.5"></label>
+<button id="autoMix">Auto-Mix (simple)</button>
+<button id="recordMix">Record Mix</button>
+<a id="downloadLink" style="display:none">Download Recording</a>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
+```
+
+File: frontend/styles.css
+```css
+body { font-family: Arial, sans-serif; margin: 20px; }
+#controls { display:flex; gap:20px; }
+.deck { border:1px solid #ccc; padding:10px; width:45%; }
+#mixer { margin-top:20px; }
+pre { background:#f5f5f5; padding:8px; }
+```
+
+File: frontend/app.js
+```javascript
+// Simple WebAudio 2-deck mixer with crossfade, pitch, basic record
+const ctx = new (window.AudioContext || window.webkitAudioContext)();
+const deck = {
+A: { source: null, buffer: null, gain: ctx.createGain(), playbackRate:1, node:null, cue:0 },
+B: { source: null, buffer: null, gain: ctx.createGain(), playbackRate:1, node:null, cue:0 }
+};
+// Connect gains to master
+const master = ctx.createGain();
+deck.A.gain.connect(master);
+deck.B.gain.connect(master);
+master.connect(ctx.destination);
+
+// Recorder
+let recorder;
+let recordedChunks = [];
+
+async function loadFileToDeck(file, which){
+const array = await file.arrayBuffer();
+const buffer = await ctx.decodeAudioData(array);
+deck[which].buffer = buffer;
+console.log(which, "loaded", buffer.duration);
+}
+
+function playDeck(which){
+if(!deck[which].buffer) return;
+stopDeck(which);
+const src = ctx.createBufferSource();
+src.buffer = deck[which].buffer;
+src.playbackRate.value = deck[which].playbackRate;
+src.connect(deck[which].gain);
+src.start(0);
+deck[which].node = src;
+}
+
+function pauseDeck(which){
+if(deck[which].node){
+try { deck[which].node.stop(); } catch(e){}
+deck[which].node = null;
+}
+}
+
+function stopDeck(which){ pauseDeck(which); }
+
+function setRate(which, val){
+deck[which].playbackRate = parseFloat(val);
+if(deck[which].node) deck[which].node.playbackRate.value = deck[which].playbackRate;
+}
+
+function setCue(which){
+// naive: set cue to currentTime (not sample-accurate)
+deck[which].cue = ctx.currentTime;
+alert(which + " cue set (demo)");
+}
+
+function jumpCue(which){
+// Demo: restart from beginning (replace with sample-accurate seek logic)
+pauseDeck(which);
+if(!deck[which].buffer) return;
+const src = ctx.createBufferSource();
+src.buffer = deck[which].buffer;
+src.playbackRate.value = deck[which].playbackRate;
+src.connect(deck[which].gain);
+src.start(0, 0); // start at 0 for demo
+deck[which].node = src;
+}
+
+// Crossfader (0 => A only, 1 => B only)
+function setCross(val){
+const x = parseFloat(val);
+deck.A.gain.gain.setValueAtTime(1 - x, ctx.currentTime);
+deck.B.gain.gain.setValueAtTime(x, ctx.currentTime);
+}
+
+// Simple auto-mix: detect lengths and crossfade linearly over 8 seconds
+function simpleAutoMix(){
+// Play deck A if not playing
+playDeck('A');
+setCross(0);
+setTimeout(()=> {
+playDeck('B');
+// do crossfade over 8s
+const steps = 80;
+for(let i=0;i<=steps;i++){
+setTimeout(((i)=>{
+return ()=> setCross(i/steps);
+})(i), i*(8000/steps));
+}
+// after done, stop A (keep B)
+setTimeout(()=> { pauseDeck('A'); setCross(1); }, 8200);
+}, 1000);
+}
+
+// Recording mix via MediaRecorder of destination stream
+function startRecording(){
+const dest = ctx.createMediaStreamDestination();
+master.connect(dest);
+recorder = new MediaRecorder(dest.stream);
+recordedChunks = [];
+recorder.ondataavailable = e => { if(e.data.size>0) recordedChunks.push(e.data); };
+recorder.onstop = ()=> {
+const blob = new Blob(recordedChunks, {type:'audio/webm'});
+const url = URL.createObjectURL(blob);
+const a = document.getElementById('downloadLink');
+a.href = url; a.download = 'mix.webm'; a.style.display='inline';
+a.textContent = 'Download mix';
+};
+recorder.start();
+}
+function stopRecording(){ if(recorder && recorder.state !== 'inactive') recorder.stop(); }
+
+// UI wiring
+document.getElementById('fileA').addEventListener('change', async (e)=>{
+const f = e.target.files[0]; if(!f) return;
+await loadFileToDeck(f, 'A');
+});
+document.getElementById('fileB').addEventListener('change', async (e)=>{
+const f = e.target.files[0]; if(!f) return;
+await loadFileToDeck(f, 'B');
+});
+document.getElementById('playA').onclick = ()=> playDeck('A');
+document.getElementById('playB').onclick = ()=> playDeck('B');
+document.getElementById('pauseA').onclick = ()=> pauseDeck('A');
+document.getElementById('pauseB').onclick = ()=> pauseDeck('B');
+document.getElementById('rateA').oninput = (e)=> setRate('A', e.target.value);
+document.getElementById('rateB').oninput = (e)=> setRate('B', e.target.value);
+document.getElementById('cueA').onclick = ()=> setCue('A');
+document.getElementById('cueB').onclick = ()=> setCue('B');
+document.getElementById('jumpA').onclick = ()=> jumpCue('A');
+document.getElementById('jumpB').onclick = ()=> jumpCue('B');
+document.getElementById('cross').oninput = (e)=> setCross(e.target.value);
+document.getElementById('autoMix').onclick = ()=> simpleAutoMix();
+document.getElementById('recordMix').onclick = ()=> {
+if(!recorder || recorder.state === 'inactive') startRecording();
+else stopRecording();
+document.getElementById('recordMix').textContent = recorder && recorder.state === 'recording' ? 'Stop Recording' : 'Record Mix';
+};
+
+// Analyze via backend
+async function analyzeFile(which, file){
+const data = new FormData();
+data.append("file", file, file.name);
+const res = await fetch("/analyze", { method:'POST', body: data });
+const json = await res.json();
+document.getElementById('analysis' + which).textContent = JSON.stringify(json, null, 2);
+}
+
+document.getElementById('analyzeA').onclick = async ()=>{
+const f = document.getElementById('fileA').files[0]; if(!f) return alert('Load a file first');
+await analyzeFile('A', f);
+};
+document.getElementById('analyzeB').onclick = async ()=>{
+const f = document.getElementById('fileB').files[0]; if(!f) return alert('Load a file first');
+await analyzeFile('B', f);
+};
+```
+
+Frontend serving
+- For development, you can serve the `frontend/` files via a static server or from the FastAPI app by adding a static mount. For simplicity during local testing, run a simple static server:
+- Python 3: from the `frontend/` folder run `python -m http.server 8080` and open `http://localhost:8080`.
+
+Quick run instructions (local dev)
+
+1) Backend
+- Create virtualenv, install requirements:
+```
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r app/requirements.txt
+# Optional: pip install demucs (if you plan to use /separate)
+uvicorn app.main:app --reload --port 8000
+```
+- FastAPI will run at http://localhost:8000. The `/analyze` endpoint is ready.
+
+2) Frontend
+- Serve static files:
+```
+cd frontend
+python3 -m http.server 8080
+```
+- Open http://localhost:8080 in a browser. Upload two local audio files; use Play/Pause, crossfader, auto-mix, record, and Analyze (calls backend at /analyze — ensure CORS or proxy configured if serving frontend and backend separately).
+- For CORS: if you serve frontend on a different port, add CORS to backend:
+```
+pip install "fastapi[all]" fastapi
+```
+And in main.py add:
+```
+from fastapi.middleware.cors import CORSMiddleware
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+```
+
+Production checklist (important items)
+- Audio quality & latency:
+- Replace simple BufferSource start/stop with sample-accurate scheduling, support seeking, warp/beatgrid for tight sync.
+- Use AudioWorklet (for web) or native audio threads (mobile/desktop) for low-latency effects.
+- AI/ML:
+- For stem separation, use Demucs or Spleeter on a server with GPU for speed; queue jobs and notify completion.
+- Add robust BPM/key detection (ensembling algorithms) and structural analysis for better auto-mix transitions.
+- Licensing & copyright:
+- Ensure user-upload flows, TOS, and DMCA policies. If offering a music library, secure licensing.
+- Security & scale:
+- Rate-limit uploads, scan content, virus-scan, authentication (OAuth), storage with signed URLs, quotas.
+- UX:
+- Add waveform visualization, beatgrid editing, pro/novice toggle, MIDI controller mapping, FX chain GUI.
+- Storage & export:
+- Support stem export, master export (WAV/MP3), cloud storage, and social sharing.
+- Testing:
+- Device testing (desktop, mobile, low-power), automated audio integration tests, stress tests for backend AI jobs.
+- Monitoring:
+- Logging, metrics, job queue monitoring, cost monitoring for GPU workloads.
+- Monetization:
+- Freemium/subscriptions, pay-per-use separation/mastering, marketplace for packs/effects.
+
+Great — below are the complete, copy-pasteable code packages for all four next steps (A–D). Each section has the minimal files needed to run locally plus brief run instructions. I kept things compact but functional so you can iterate.
+
+Important: paste each file exactly (paths shown). For brevity I assume Linux/macOS dev environment; Windows adjustments (venv activation, paths) are straightforward.
+
+================
+A) Enhanced WebAudio mixer (waveform, beatgrid, sample-accurate scheduling)
+Files: frontend/index.html, frontend/styles.css, frontend/app.js
+
+frontend/index.html
+```html
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<title>DJ Hybrid — Enhanced Mixer</title>
+<link rel="stylesheet" href="styles.css"/>
+<!-- Wavesurfer for waveform + regions -->
+<script src="https://unpkg.com/wavesurfer.js"></script>
+<script src="https://unpkg.com/wavesurfer.js/dist/plugin/wavesurfer.regions.min.js"></script>
+</head>
+<body>
+<h1>DJ Hybrid — Enhanced Mixer</h1>
+
+<div id="decks">
+<div class="deck" id="deckA">
+<h3>Deck A</h3>
+<input type="file" id="fileA" accept="audio/*"/>
+<div id="waveA" class="wave"></div>
+<div class="controls">
+<button id="playA">Play</button>
+<button id="cueA">Cue</button>
+<label>Rate <input id="rateA" type="range" min="0.5" max="1.5" step="0.001" value="1"></label>
+<button id="analyzeA">Analyze</button>
+</div>
+<pre id="infoA"></pre>
+</div>
+
+<div class="deck" id="deckB">
+<h3>Deck B</h3>
+<input type="file" id="fileB" accept="audio/*"/>
+<div id="waveB" class="wave"></div>
+<div class="controls">
+<button id="playB">Play</button>
+<button id="cueB">Cue</button>
+<label>Rate <input id="rateB" type="range" min="0.5" max="1.5" step="0.001" value="1"></label>
+<button id="analyzeB">Analyze</button>
+</div>
+<pre id="infoB"></pre>
+</div>
+</div>
+
+<div id="mixer">
+<label>Crossfader <input id="cross" type="range" min="0" max="1" step="0.001" value="0.5"></label>
+<button id="syncBtn">Sync BPM</button>
+<button id="autoMixBtn">Auto-Mix (smart)</button>
+<div id="midiStatus">MIDI: disconnected</div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
+```
+
+frontend/styles.css
+```css
+body { font-family: Arial, sans-serif; margin: 20px; }
+#decks { display:flex; gap:20px; }
+.deck { width:48%; border:1px solid #ddd; padding:10px; }
+.wave { height:120px; background:#111; margin:8px 0; }
+.controls { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+#mixer { margin-top:16px; }
+pre { background:#f7f7f7; padding:8px; overflow:auto; max-height:120px; }
+```
+
+frontend/app.js
+```javascript
+// Enhanced 2-deck using Wavesurfer + WebAudio scheduling + basic BPM sync/suggestion
+const backendBase = "http://localhost:8000"; // adjust if backend runs elsewhere
+
+// Wavesurfer instances for visual + region support
+const wsA = WaveSurfer.create({ container: '#waveA', waveColor: '#4b9', progressColor:'#9cf', height:120, plugins: [ WaveSurfer.regions.create() ] });
+const wsB = WaveSurfer.create({ container: '#waveB', waveColor: '#f54', progressColor:'#f99', height:120, plugins: [ WaveSurfer.regions.create() ] });
+
+// WebAudio nodes for crossfader + gain control
+const AudioContext = window.AudioContext || window.webkitAudioContext;
+const ctx = new AudioContext();
+const master = ctx.createGain();
+const gainA = ctx.createGain();
+const gainB = ctx.createGain();
+gainA.connect(master); gainB.connect(master); master.connect(ctx.destination);
+
+// Deck state
+const deck = {
+A: { ws: wsA, gain: gainA, buffer: null, bpm: null, key:null, source: null, scheduled: null },
+B: { ws: wsB, gain: gainB, buffer: null, bpm: null, key:null, source: null, scheduled: null }
+};
+
+function setCross(v){
+const x = parseFloat(v);
+gainA.gain.setTargetAtTime(1-x, ctx.currentTime, 0.01);
+gainB.gain.setTargetAtTime(x, ctx.currentTime, 0.01);
+}
+document.getElementById('cross').addEventListener('input', e=> setCross(e.target.value));
+
+// File load handlers
+async function loadFile(which, file){
+const array = await file.arrayBuffer();
+// decode for scheduling
+const buffer = await ctx.decodeAudioData(array.slice(0));
+deck[which].buffer = buffer;
+// load into wavesurfer for visualization (needs blob/url)
+const blob = new Blob([array], { type: file.type || 'audio/*' });
+const url = URL.createObjectURL(blob);
+deck[which].ws.load(url);
+// clear old info
+document.getElementById('info'+which).textContent = `Duration: ${buffer.duration.toFixed(2)}s`;
+}
+
+// Play with sample-accurate scheduling
+function playDeck(which, when=0, offset=0){
+if(!deck[which].buffer) return;
+stopDeck(which);
+const src = ctx.createBufferSource();
+src.buffer = deck[which].buffer;
+// apply rate from UI
+const rate = parseFloat(document.getElementById('rate'+which).value);
+src.playbackRate.value = rate;
+src.connect(deck[which].gain);
+src.start(ctx.currentTime + when, offset);
+deck[which].source = src;
+// sync wavesurfer play indicator (approx)
+deck[which].ws.play();
+}
+
+// Stop deck
+function stopDeck(which){
+const s = deck[which].source;
+if(s){ try{ s.stop(); }catch(e){} deck[which].source = null; deck[which].ws.pause(); deck[which].ws.seekTo(0); }
+}
+
+// On file input
+document.getElementById('fileA').addEventListener('change', async (e)=> {
+const f = e.target.files[0]; if(!f) return;
+await loadFile('A', f);
+});
+document.getElementById('fileB').addEventListener('change', async (e)=> {
+const f = e.target.files[0]; if(!f) return;
+await loadFile('B', f);
+});
+
+// Play buttons
+document.getElementById('playA').onclick = ()=> {
+if(ctx.state === 'suspended') ctx.resume();
+playDeck('A');
+};
+document.getElementById('playB').onclick = ()=> {
+if(ctx.state === 'suspended') ctx.resume();
+playDeck('B');
+};
+
+// Cue: set region start as cue (demo)
+document.getElementById('cueA').onclick = ()=> {
+const reg = deck.A.ws.addRegion({ start: 0, end: Math.min(8, deck.A.buffer ? deck.A.buffer.duration:8), color: 'rgba(0,255,0,0.1)' });
+alert('Cue region set (demo). Use regions for hotcues in full app.');
+};
+document.getElementById('cueB').onclick = ()=> {
+const reg = deck.B.ws.addRegion({ start: 0, end: Math.min(8, deck.B.buffer ? deck.B.buffer.duration:8), color: 'rgba(255,0,0,0.1)' });
+alert('Cue region set (demo).');
+};
+
+// Rate sliders update playbackRate of currently playing buffer source if exists
+document.getElementById('rateA').addEventListener('input', (e)=>{
+const v = parseFloat(e.target.value);
+if(deck.A.source) deck.A.source.playbackRate.value = v;
+});
+document.getElementById('rateB').addEventListener('input', (e)=>{
+const v = parseFloat(e.target.value);
+if(deck.B.source) deck.B.source.playbackRate.value = v;
+});
+
+// Backend analysis (BPM/key)
+async function analyzeViaBackend(file){
+const fd = new FormData();
+fd.append('file', file, file.name);
+const res = await fetch(backendBase + '/analyze', { method:'POST', body: fd });
+return await res.json();
+}
+document.getElementById('analyzeA').onclick = async ()=>{
+const f = document.getElementById('fileA').files[0]; if(!f) return alert('Load file A');
+const js = await analyzeViaBackend(f);
+deck.A.bpm = js.bpm; deck.A.key = js.key;
+document.getElementById('infoA').textContent += `\nBPM: ${js.bpm}\nKey: ${js.key}`;
+};
+document.getElementById('analyzeB').onclick = async ()=>{
+const f = document.getElementById('fileB').files[0]; if(!f) return alert('Load file B');
+const js = await analyzeViaBackend(f);
+deck.B.bpm = js.bpm; deck.B.key = js.key;
+document.getElementById('infoB').textContent += `\nBPM: ${js.bpm}\nKey: ${js.key}`;
+};
+
+// Sync BPM button: compute rate multiplier to match A->B
+document.getElementById('syncBtn').onclick = ()=>{
+if(!deck.A.bpm || !deck.B.bpm) return alert('Analyze both tracks first');
+const target = deck.A.bpm;
+const mult = target / deck.B.bpm;
+document.getElementById('rateB').value = mult.toFixed(3);
+if(deck.B.source) deck.B.source.playbackRate.value = mult;
+alert(`Set B rate to ${mult.toFixed(3)} to sync to A`);
+};
+
+// Smart auto-mix (structure-aware simplistic): start A, schedule B to start at next beat
+document.getElementById('autoMixBtn').onclick = ()=>{
+if(!deck.A.buffer || !deck.B.buffer) return alert('Load both tracks');
+// naive: play A now; compute when to start B after 8s such that crossfade happens on beat
+playDeck('A');
+const whenToStart = 8; // placeholder; production uses beat-grid & downbeat detection
+// schedule B start in sample-accurate way
+playDeck('B', whenToStart);
+// crossfade over 8s starting whenToStart
+const fadeDur = 8;
+setTimeout(()=> {
+const steps = 80;
+for(let i=0;i<=steps;i++){
+setTimeout(((i)=>{
+return ()=> setCross(i/steps);
+})(i), i*(fadeDur/steps)*1000);
+}
+setTimeout(()=> stopDeck('A'), (fadeDur+0.1)*1000);
+}, whenToStart*1000);
+};
+
+// MIDI support (simple mapping)
+let midiAccess = null;
+navigator.requestMIDIAccess().then((m)=>{
+midiAccess = m; document.getElementById('midiStatus').textContent = 'MIDI: connected';
+for (let entry of midiAccess.inputs.values()) {
+entry.onmidimessage = handleMIDIMessage;
+}
+});
+function handleMIDIMessage(msg){
+// Example: map pad/button on channel to play/pause A/B
+const [status, data1, data2] = msg.data;
+// NoteOn example mapping (status 144)
+if(status === 144 && data2 > 0){
+if(data1 === 36) { // pad 36 -> play A
+playDeck('A');
+} else if(data1 === 37) { // pad 37 -> play B
+playDeck('B');
+} else if(data1 === 38) { // pad 38 -> cross fader middle
+setCross(0.5);
+}
+}
+}
+```
+
+Run frontend:
+- Serve frontend folder (e.g., from frontend/): python3 -m http.server 8080
+- Open http://localhost:8080
+
+Notes: Wavesurfer handles waveform & simple region/hotcue UI; sample-accurate scheduling uses AudioBufferSource start with precise start times. Full warp/beatgrid requires deeper DSP (later).
+
+================
+B) Fully fleshed FastAPI AI backend (BPM/key ensemble, Demucs integration, /mix-suggestion)
+Files: backend/app/main.py, backend/app/requirements.txt, backend/Dockerfile (optional)
+
+backend/app/main.py
+```python
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+import tempfile, os, subprocess, json
+import numpy as np
+import librosa
+
+app = FastAPI()
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+def analyze_bpm_key(path):
+# Attempt several tempo detectors and ensemble
+y, sr = librosa.load(path, sr=None, mono=True)
+# librosa beat
+tempo1, _ = librosa.beat.beat_track(y=y, sr=sr)
+# autocorrelation via onset envelope
+onset_env = librosa.onset.onset_strength(y=y, sr=sr)
+tempo2 = librosa.beat.tempo(onset_envelope=onset_env, sr=sr)
+# choose median
+tempos = [float(tempo1)] + [float(t) for t in np.atleast_1d(tempo2)]
+tempo = float(np.median(tempos))
+# key estimate via chroma
+chroma = librosa.feature.chroma_cens(y=y, sr=sr)
+key_idx = int(np.argmax(chroma.mean(axis=1)))
+notes = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B']
+return {"bpm": round(tempo,2), "key": notes[key_idx]}
+
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...)):
+suffix = os.path.splitext(file.filename)[1] or ".wav"
+with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+content = await file.read()
+tmp.write(content)
+tmp.flush()
+tmp_path = tmp.name
+try:
+res = analyze_bpm_key(tmp_path)
+return JSONResponse(content=res)
+finally:
+try: os.unlink(tmp_path)
+except: pass
+
+@app.post("/separate")
+async def separate(file: UploadFile = File(...), two_stems: bool = True):
+"""
+Runs demucs (if installed) to separate stems.
+Returns JSON with paths (on server) or error.
+For production return signed URLs to downloaded files from object storage.
+"""
+suffix = os.path.splitext(file.filename)[1] or ".wav"
+with tempfile.TemporaryDirectory() as td:
+in_path = os.path.join(td, "input"+suffix)
+with open(in_path, "wb") as f:
+f.write(await file.read())
+out_dir = os.path.join(td, "out")
+os.makedirs(out_dir, exist_ok=True)
+# demucs command: demucs --two-stems=vocals -o out in_path
+cmd = ["demucs", "--two-stems=vocals", "-o", out_dir, in_path] if two_stems else ["demucs", "-o", out_dir, in_path]
+try:
+subprocess.check_output(cmd, stderr=subprocess.STDOUT)
+except FileNotFoundError:
+return JSONResponse(content={"error":"demucs not installed on server"}, status_code=400)
+except subprocess.CalledProcessError as e:
+return JSONResponse(content={"error":"demucs failed","output": e.output.decode()}, status_code=500)
+# collect produced wavs
+produced = []
+for root,_,files in os.walk(out_dir):
+for fn in files:
+if fn.endswith(".wav") or fn.endswith(".mp3"):
+produced.append(os.path.join(root,fn))
+return JSONResponse(content={"status":"done","files":produced})
+
+@app.post("/mix-suggestion")
+async def mix_suggestion(fileA: UploadFile = File(...), fileB: UploadFile = File(...)):
+"""
+Analyze both tracks and return a simple mix plan:
+- bpm/key of each
+- suggested crossfade length (secs)
+- suggested BPM rate multiplier for deckB to match deckA
+- suggested transition type (fade, echo, filter)
+"""
+def save_temp(f):
+suffix = os.path.splitext(f.filename)[1] or ".wav"
+tf = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+content = f.file.read()
+tf.write(content); tf.flush(); tf.close()
+return tf.name
+a_path = save_temp(fileA); b_path = save_temp(fileB)
+try:
+a = analyze_bpm_key(a_path)
+b = analyze_bpm_key(b_path)
+# conservative crossfade: if BPM close, shorter crossfade
+bpm_diff = abs(a['bpm'] - b['bpm'])
+cross = 6 if bpm_diff < 3 else 10 if bpm_diff < 6 else 14
+# suggested rate to match B -> A
+rate = round(a['bpm'] / b['bpm'], 4) if b['bpm']>0 else 1.0
+# simple transition type heuristic
+if a['key'] == b['key']:
+ttype = "blend"
+elif bpm_diff < 2:
+ttype = "filter-sweep"
+else:
+ttype = "beat-jump"
+return JSONResponse(content={"A":a, "B":b, "suggested_rate_for_B":rate, "crossfade_seconds":cross, "transition":ttype})
+finally:
+try: os.unlink(a_path); os.unlink(b_path)
+except: pass
+
+if __name__ == "__main__":
+import uvicorn
+uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+```
+
+backend/app/requirements.txt
+```
+fastapi
+uvicorn[standard]
+librosa
+numpy
+soundfile
+```
+
+backend/Dockerfile (optional)
+```
+FROM python:3.10-slim
+WORKDIR /app
+COPY app/requirements.txt .
+RUN apt-get update && apt-get install -y build-essential ffmpeg libsndfile1 && \
+pip install --no-cache-dir -r app/requirements.txt
+COPY app /app/app
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+Notes:
+- Demucs: install with `pip install demucs` in an environment with ffmpeg and (optionally) PyTorch with GPU. For production, run Demucs on worker machines with GPUs and use a job queue (Redis/RQ/Celery).
+- /mix-suggestion returns a simple plan. You can extend to include beatgrid timestamps and suggested cue points.
+
+Run backend:
+```
+cd backend
+python3 -m venv venv
+source venv/bin/activate
+pip install -r app/requirements.txt
+# optional: pip install demucs
+uvicorn app.main:app --reload --port 8000
+```
+
+================
+C) Docker Compose (frontend + backend + optional Demucs GPU worker)
+File: docker-compose.yml
+
+```yaml
+version: "3.8"
+services:
+backend:
+build:
+context: ./backend
+dockerfile: Dockerfile
+ports:
+- "8000:8000"
+volumes:
+- ./backend/app:/app/app
+environment:
+- PYTHONUNBUFFERED=1
+
+frontend:
+image: python:3.10-slim
+working_dir: /srv
+volumes:
+- ./frontend:/srv
+command: ["python3", "-m", "http.server", "8080"]
+ports:
+- "8080:8080"
+
+demucs_worker:
+image: python:3.10-slim
+build:
+context: ./backend
+dockerfile: Dockerfile
+command: ["bash", "-lc", "pip install demucs && sleep infinity"]
+# In prod, this would run a worker listening to a job queue
+deploy:
+resources:
+reservations:
+devices: [] # add GPU reservations if using nvidia runtime
+volumes:
+- ./backend/app:/app/app
+```
+
+Run:
+- docker-compose up --build
+- frontend at http://localhost:8080, backend at http://localhost:8000
+
+================
+D) MIDI controller mapping example & UI (integrated into frontend)
+Files: frontend/midi-mapping.html (small demo), frontend/midi-mapping.js
+
+frontend/midi-mapping.html
+```html
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>MIDI Mapping Demo</title></head>
+<body>
+<h2>MIDI Mapping Demo</h2>
+<div>Detected mappings will show below. Connect a MIDI controller and press buttons.</div>
+<pre id="log"></pre>
+<script src="midi-mapping.js"></script>
+</body>
+</html>
+```
+
+frontend/midi-mapping.js
+```javascript
+const log = document.getElementById('log');
+let mapping = {}; // user-defined mapping: midiNote -> action
+
+function append(s){ log.textContent += s + '\n'; }
+
+if(navigator.requestMIDIAccess){
+navigator.requestMIDIAccess().then(midi => {
+append('MIDI ready');
+for(let input of midi.inputs.values()){
+input.onmidimessage = e => {
+const [status, data1, data2] = e.data;
+append(`msg: status=${status} data1=${data1} data2=${data2}`);
+// Example: if control held, allow mapping to an action
+// Simple UI-less demo: if velocity>0 set mapping for note to toggle playA
+if(status === 144 && data2 > 0){ // NoteOn
+if(!mapping[data1]){
+mapping[data1] = 'playA';
+append(`Mapped note ${data1} -> playA`);
+} else {
+// trigger action
+const action = mapping[data1];
+append(`Trigger action ${action} for note ${data1}`);
+// In real integration you'd call playDeck('A') etc.
+}
+}
+};
+}
+});
+} else append('WebMIDI not supported');
+```
+
+Integration notes:
+- The earlier frontend app.js contains a simple MIDI handler; the mapping UI/demo above shows how to store mappings (persist to localStorage) and trigger app actions.
+- For production, build a mapping editor: learn MIDI input (press a control to record mapping), let user pick action (play/pause, cue, set loop, effect), store mapping JSON and persist.
+
+================
+Final notes & recommended next small steps
+- This package is a working scaffold. Next production tasks:
+- Implement beatgrid extraction (e.g., using madmom or dynamic beat trackers) and export beat timestamps from backend for precise mix planning.
+- Offload heavy separation/mastering to GPU workers with a job queue (Redis + Celery/RQ).
+- Replace naive auto-mix with transition engine that uses structural sections (intro/verse/chorus) and aligned downbeats.
+- Add secure storage (S3) and signed download URLs for separated stems.
+- Improve frontend sync: use granular/spectral time-stretch (SoundTouch or WebAssembly libraries) for quality tempo changes.
+- Add user auth, licensing checks, and audit logging before scaling.
+
+If you want, I can now:
+- Provide a beatgrid extraction endpoint using madmom (Python) and integrate it into /mix-suggestion, or
+- Expand the auto-mix algorithm to use beat timestamps and generate a timeline (with code) for the frontend scheduler.
