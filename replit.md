@@ -1,8 +1,8 @@
-# DJ Hybrid - Professional 2-Deck Mixer
+# DJ Hybrid - Professional 4-Deck Mixer
 
 ## Overview
 
-This is a browser-based professional 2-deck DJ mixer application with Beginner and Pro modes. It provides real-time audio crossfading, 3-band EQ, audio effects (reverb/delay/filter), loop controls (including micro-loops at 0.5/1/2/4/8/16 beats), hotcue points with intelligent auto-placement (detects intro/build/drop/outro), waveform visualization with zoom (1x-16x) and beat grid markers, VU meters, BPM/key detection with harmonic compatibility analysis (Camelot wheel), mix recording, BPM-aware auto-mix, 8-pad sampler with built-in synthesized samples, beat-phase alignment indicator, keyboard shortcuts for pro controls, and beginner coaching tips — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides mix suggestion and analysis endpoints.
+This is a browser-based professional 2/4-deck DJ mixer application with Beginner and Pro modes. It provides real-time audio crossfading (dual crossfaders for 4-deck), 3-band EQ, audio effects (reverb/delay/filter), loop controls (including micro-loops at 0.5/1/2/4/8/16 beats), hotcue points with intelligent auto-placement (detects intro/build/drop/outro), waveform visualization with zoom (1x-16x) and beat grid markers, VU meters, BPM/key detection with harmonic compatibility analysis (Camelot wheel), mix recording, BPM-aware auto-mix, 8-pad sampler with built-in synthesized samples, beat-phase alignment indicator, keyboard shortcuts for pro controls, beginner coaching tips, beat sync button, transition effects (spinback/brake/echo-out), visual theme engine with 6 color schemes, full-screen visualizer with 4 modes, track library with playlist management, set history logging, guided mix challenges with scoring, mix feedback/rating system, mastering chain with presets, and MIDI controller support — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides mix suggestion and analysis endpoints.
 
 ## User Preferences
 
@@ -28,6 +28,11 @@ Key custom components:
 - `EQKnob` (`client/src/components/eq-knob.tsx`) - Rotary knob control with drag-to-rotate interaction for EQ band adjustment
 - `FXRack` (`client/src/components/fx-rack.tsx`) - Audio effects panel with toggleable filter (LPF/HPF), reverb, and delay with parameter controls
 - `ThemeProvider` (`client/src/components/theme-provider.tsx`) - Dark/light theme toggle with localStorage persistence
+- `ThemeSelector` (`client/src/components/theme-engine.tsx`) - Visual theme engine with 6 color schemes (Neon Club, Minimal, Retro Vinyl, Sunset, Ice, Matrix) affecting deck colors and accent hues
+- `Visualizer` (`client/src/components/visualizer.tsx`) - Canvas-based full-screen visualizer with 4 modes (bars, circular, particles, wave) using analyzer data from both decks
+- `TrackLibrary` (`client/src/components/track-library.tsx`) - Track library with search, playlist management, file import, and set history tracking with timestamps
+- `MixChallenges` (`client/src/components/mix-challenges.tsx`) - Guided mix challenges with 6 challenges, scoring, timer, and real-time mix feedback on beat alignment, volume consistency, and transition smoothness
+- `MidiController` (`client/src/components/midi-controller.tsx`) - MIDI controller support using Web MIDI API with default mappings for crossfade, EQ, volume, and playback controls
 
 Key custom hooks:
 - `useAudioEngine` (`client/src/hooks/use-audio-engine.ts`) - Core audio engine using Web Audio API. Manages two decks (A & B) with full signal chain: source → 3-band EQ (low shelf/peaking/high shelf) → filter → delay (with feedback) → reverb (convolver) → gain → analyzer → master. Includes crossfading, playback control, loop management, hotcue storage, recording via MediaRecorder, VU metering, and BPM-aware auto-mix with smooth S-curve transitions.

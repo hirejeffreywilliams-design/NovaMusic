@@ -65,6 +65,7 @@ export interface DeckState {
   beatGrid: number[];
   stems: StemsState;
   stemsEnabled: boolean;
+  transitionEffect: string | null;
 }
 
 export interface MasteringState {
@@ -111,6 +112,7 @@ const defaultDeckState: DeckState = {
   beatGrid: [],
   stems: { ...defaultStems },
   stemsEnabled: false,
+  transitionEffect: null,
 };
 
 const defaultMastering: MasteringState = {
@@ -984,6 +986,97 @@ export function useAudioEngine() {
     }
   }, []);
 
+  const beatSync = useCallback((target: DeckId, reference: DeckId, targetBpm: number, referenceBpm: number) => {
+    if (!targetBpm || !referenceBpm || targetBpm <= 0 || referenceBpm <= 0) return;
+    const ratio = referenceBpm / targetBpm;
+    const newRate = ratio;
+    setRate(target, newRate);
+  }, [setRate]);
+
+  const spinBack = useCallback((which: DeckId) => {
+    const ctx = getCtx();
+    const src = sourceRefs.current[which];
+    const state = decks[which];
+    if (!src || !state.isPlaying || state.transitionEffect) return;
+
+    setDeck(which, (prev) => ({ ...prev, transitionEffect: "spinback" }));
+
+    const now = ctx.currentTime;
+    const currentRate = state.playbackRate;
+    src.playbackRate.cancelScheduledValues(now);
+    src.playbackRate.setValueAtTime(currentRate, now);
+    src.playbackRate.linearRampToValueAtTime(-0.5, now + 0.5);
+
+    setTimeout(() => {
+      stopSource(which);
+      setDeck(which, (prev) => ({
+        ...prev,
+        isPlaying: false,
+        transitionEffect: null,
+        playbackRate: 1,
+      }));
+      const currentOffset = offsetRefs.current[which];
+      offsetRefs.current[which] = Math.max(0, currentOffset);
+    }, 600);
+  }, [getCtx, decks, setDeck, stopSource]);
+
+  const brake = useCallback((which: DeckId) => {
+    const ctx = getCtx();
+    const src = sourceRefs.current[which];
+    const state = decks[which];
+    if (!src || !state.isPlaying || state.transitionEffect) return;
+
+    setDeck(which, (prev) => ({ ...prev, transitionEffect: "brake" }));
+
+    const now = ctx.currentTime;
+    const currentRate = state.playbackRate;
+    src.playbackRate.cancelScheduledValues(now);
+    src.playbackRate.setValueAtTime(currentRate, now);
+    src.playbackRate.exponentialRampToValueAtTime(0.001, now + 1.5);
+
+    setTimeout(() => {
+      stopSource(which);
+      setDeck(which, (prev) => ({
+        ...prev,
+        isPlaying: false,
+        transitionEffect: null,
+        playbackRate: 1,
+      }));
+    }, 1600);
+  }, [getCtx, decks, setDeck, stopSource]);
+
+  const echoOut = useCallback((which: DeckId) => {
+    const ctx = getCtx();
+    const nodes = nodesRef.current[which];
+    const state = decks[which];
+    if (!nodes || !state.isPlaying || state.transitionEffect) return;
+
+    setDeck(which, (prev) => ({ ...prev, transitionEffect: "echoout" }));
+
+    const now = ctx.currentTime;
+    nodes.delayNode.delayTime.setValueAtTime(0.3, now);
+    nodes.delayFeedback.gain.setValueAtTime(0.6, now);
+    nodes.delayWet.gain.setValueAtTime(0.7, now);
+
+    nodes.gain.gain.cancelScheduledValues(now);
+    nodes.gain.gain.setValueAtTime(nodes.gain.gain.value, now);
+    nodes.gain.gain.linearRampToValueAtTime(0, now + 2);
+
+    setTimeout(() => {
+      stopSource(which);
+      nodes.gain.gain.cancelScheduledValues(ctx.currentTime);
+      nodes.gain.gain.setValueAtTime(state.volume, ctx.currentTime);
+      nodes.delayFeedback.gain.setValueAtTime(state.fx.delayEnabled ? state.fx.delayFeedback : 0, ctx.currentTime);
+      nodes.delayWet.gain.setValueAtTime(state.fx.delayEnabled ? 0.5 : 0, ctx.currentTime);
+      nodes.delayNode.delayTime.setValueAtTime(state.fx.delayTime, ctx.currentTime);
+      setDeck(which, (prev) => ({
+        ...prev,
+        isPlaying: false,
+        transitionEffect: null,
+      }));
+    }, 2200);
+  }, [getCtx, decks, setDeck, stopSource]);
+
   useEffect(() => {
     const update = () => {
       const ctx = ctxRef.current;
@@ -1055,5 +1148,6 @@ export function useAudioEngine() {
     playSample, loadSampleFile,
     setStemGain, toggleStems,
     setMasterPreset, setMasterGain,
+    beatSync, spinBack, brake, echoOut,
   };
 }

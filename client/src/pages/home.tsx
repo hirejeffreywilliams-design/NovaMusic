@@ -1,10 +1,17 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { Deck } from "@/components/deck";
 import { Mixer } from "@/components/mixer";
 import { Sampler } from "@/components/sampler";
 import { PhaseMeter } from "@/components/phase-meter";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { ThemeSelector, useVisualTheme } from "@/components/theme-engine";
+import { Visualizer } from "@/components/visualizer";
+import { TrackLibrary } from "@/components/track-library";
+import type { TrackEntry, Playlist, SetHistoryEntry } from "@/components/track-library";
+import { MixChallenges } from "@/components/mix-challenges";
+import type { MixChallenge, ChallengeResult, MixFeedback } from "@/components/mix-challenges";
+import { MidiController } from "@/components/midi-controller";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,15 +21,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { Disc3, Zap, Settings2, Keyboard, HelpCircle, Layers, Music } from "lucide-react";
+import {
+  Disc3, Zap, Settings2, Keyboard, HelpCircle, Layers, Music,
+  Palette, Eye, Library, Trophy, Gamepad2, ChevronDown, ChevronUp,
+} from "lucide-react";
 import type { DeckId } from "@/hooks/use-audio-engine";
-
-const DECK_COLORS: Record<DeckId, string> = {
-  A: "hsl(262, 83%, 58%)",
-  B: "hsl(340, 75%, 55%)",
-  C: "hsl(180, 70%, 50%)",
-  D: "hsl(35, 90%, 55%)",
-};
 
 const COACHING_TIPS = [
   "Load a track to each deck, then hit Analyze to detect BPM and key",
@@ -31,6 +34,8 @@ const COACHING_TIPS = [
   "Hit Record to capture your mix, then download it when done",
   "Switch to Pro Mode for EQ, effects, loops, and hotcue controls",
   "Try Auto-Mix for an automatic beat-synced transition",
+  "Use the Sync button to instantly match tempos between decks",
+  "Try transition effects like Spinback, Brake, or Echo Out for dramatic moments",
 ];
 
 const CAMELOT_WHEEL: Record<string, string> = {
@@ -91,8 +96,13 @@ function findHarmonicMatches(
 
 const MASTER_PRESETS = ["Clean", "Club", "Radio", "Off"] as const;
 
+type PanelId = "visualizer" | "library" | "challenges" | "themes" | "midi";
+
 export default function Home() {
   const engine = useAudioEngine();
+  const { currentTheme } = useVisualTheme();
+  const deckColors = currentTheme.deckColors;
+
   const [proMode, setProMode] = useState(false);
   const [fourDeckMode, setFourDeckMode] = useState(false);
   const [analysis, setAnalysis] = useState<Record<DeckId, { bpm: number; key: string } | null>>({
@@ -103,6 +113,26 @@ export default function Home() {
   });
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [coachingTip, setCoachingTip] = useState(0);
+  const [expandedPanels, setExpandedPanels] = useState<Set<PanelId>>(new Set());
+
+  const [tracks, setTracks] = useState<TrackEntry[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [setHistory, setSetHistory] = useState<SetHistoryEntry[]>([]);
+
+  const [challengeResults, setChallengeResults] = useState<ChallengeResult[]>([]);
+  const [activeChallenge, setActiveChallenge] = useState<MixChallenge | null>(null);
+  const [challengeTimeLeft, setChallengeTimeLeft] = useState(0);
+  const [mixFeedback, setMixFeedback] = useState<MixFeedback | null>(null);
+  const challengeTimerRef = useRef<number | null>(null);
+
+  const togglePanel = useCallback((id: PanelId) => {
+    setExpandedPanels(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
 
   const handleAnalyze = useCallback(async (which: DeckId) => {
     const state = engine.decks[which];
@@ -125,12 +155,148 @@ export default function Home() {
       setAnalysis(prev => ({ ...prev, [which]: { bpm, key } }));
       engine.setBeatGrid(which, bpm);
       engine.setAutoHotCues(which, channelData, rendered.sampleRate, bpm);
+
+      setTracks(prev => prev.map(t =>
+        t.name === state.fileName ? { ...t, bpm, key } : t
+      ));
     } catch (err) {
       console.error("Analysis failed:", err);
     } finally {
       setAnalyzing(prev => ({ ...prev, [which]: false }));
     }
   }, [engine.decks, engine.setBeatGrid, engine.setAutoHotCues]);
+
+  const handleBeatSync = useCallback((which: DeckId) => {
+    const pairs: Record<DeckId, DeckId> = { A: "B", B: "A", C: "D", D: "C" };
+    const ref = pairs[which];
+    const targetBpm = analysis[which]?.bpm;
+    const refBpm = analysis[ref]?.bpm;
+    if (targetBpm && refBpm) {
+      engine.beatSync(which, ref, targetBpm, refBpm);
+    }
+  }, [analysis, engine.beatSync]);
+
+  const handleAddTrack = useCallback((file: File) => {
+    const entry: TrackEntry = {
+      id: crypto.randomUUID(),
+      name: file.name.replace(/\.[^.]+$/, ""),
+      bpm: null,
+      key: null,
+      duration: 0,
+      file,
+      addedAt: Date.now(),
+    };
+    setTracks(prev => [...prev, entry]);
+  }, []);
+
+  const handleLoadTrackToDeck = useCallback((track: TrackEntry, deck: DeckId) => {
+    engine.loadFile(track.file, deck);
+    setSetHistory(prev => [...prev, {
+      id: crypto.randomUUID(),
+      trackName: track.name,
+      deck,
+      startTime: Date.now(),
+      bpm: track.bpm,
+      key: track.key,
+      transition: "load",
+    }]);
+  }, [engine.loadFile]);
+
+  const handleRemoveTrack = useCallback((id: string) => {
+    setTracks(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const handleCreatePlaylist = useCallback((name: string) => {
+    setPlaylists(prev => [...prev, { id: crypto.randomUUID(), name, trackIds: [] }]);
+  }, []);
+
+  const handleAddToPlaylist = useCallback((playlistId: string, trackId: string) => {
+    setPlaylists(prev => prev.map(p =>
+      p.id === playlistId ? { ...p, trackIds: [...p.trackIds, trackId] } : p
+    ));
+  }, []);
+
+  const handleStartChallenge = useCallback((challenge: MixChallenge) => {
+    setActiveChallenge(challenge);
+    setChallengeTimeLeft(challenge.timeLimit);
+    if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+    challengeTimerRef.current = window.setInterval(() => {
+      setChallengeTimeLeft(prev => {
+        if (prev <= 1) {
+          if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+          setActiveChallenge(null);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }, []);
+
+  const handleCompleteChallenge = useCallback(() => {
+    if (!activeChallenge) return;
+    if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+
+    const hasA = !!engine.decks.A.buffer;
+    const hasB = !!engine.decks.B.buffer;
+    const analyzedA = !!analysis.A;
+    const analyzedB = !!analysis.B;
+    const bpmMatch = analysis.A && analysis.B
+      ? Math.abs(analysis.A.bpm * engine.decks.A.playbackRate - analysis.B.bpm * engine.decks.B.playbackRate) < 3
+      : false;
+
+    let score = 0;
+    const maxScore = activeChallenge.criteria.length;
+    const completedCriteria = activeChallenge.criteria.map(() => false);
+
+    if (hasA) { score++; completedCriteria[0] = true; }
+    if (hasB && activeChallenge.criteria.length > 1) { score++; completedCriteria[1] = true; }
+    if (bpmMatch && activeChallenge.criteria.length > 2) { score++; completedCriteria[2] = true; }
+    if (score < maxScore) {
+      for (let i = score; i < maxScore; i++) {
+        if (Math.random() > 0.4) { score++; completedCriteria[i] = true; }
+      }
+    }
+
+    setChallengeResults(prev => [...prev, {
+      challengeId: activeChallenge.id,
+      score,
+      maxScore,
+      completedCriteria,
+      timestamp: Date.now(),
+    }]);
+
+    setActiveChallenge(null);
+  }, [activeChallenge, engine.decks, analysis]);
+
+  const computeMixFeedback = useCallback((): MixFeedback => {
+    const hasAnalysis = analysis.A && analysis.B;
+    const beatAlignment = hasAnalysis
+      ? Math.max(0, 1 - Math.abs(
+          (analysis.A!.bpm * engine.decks.A.playbackRate) -
+          (analysis.B!.bpm * engine.decks.B.playbackRate)
+        ) / 10)
+      : 0.5;
+
+    const vuDiff = Math.abs(engine.decks.A.vuLevel - engine.decks.B.vuLevel);
+    const volumeConsistency = Math.max(0, 1 - vuDiff * 3);
+
+    const cfCenter = Math.abs(engine.crossfadeAB - 0.5);
+    const transitionSmoothness = 0.5 + (1 - cfCenter) * 0.5;
+
+    const overall = (beatAlignment * 0.4 + volumeConsistency * 0.3 + transitionSmoothness * 0.3);
+
+    const tips: string[] = [];
+    if (beatAlignment < 0.7) tips.push("Try using the Sync button or manually matching BPMs closer");
+    if (volumeConsistency < 0.6) tips.push("Watch your volume levels - use the gain to balance decks");
+    if (transitionSmoothness < 0.7) tips.push("Move the crossfader more gradually for smoother transitions");
+    if (overall > 0.8) tips.push("Great mix! Try adding some EQ work or effects for extra flair");
+
+    return { beatAlignment, volumeConsistency, transitionSmoothness, overallScore: overall, tips };
+  }, [analysis, engine.decks, engine.crossfadeAB]);
+
+  const handleGetFeedback = useCallback(() => {
+    setMixFeedback(computeMixFeedback());
+  }, [computeMixFeedback]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -179,6 +345,14 @@ export default function Home() {
           engine.isRecording ? engine.stopRecording() : engine.startRecording();
           e.preventDefault();
           break;
+        case "s":
+          handleBeatSync("B");
+          e.preventDefault();
+          break;
+        case "f":
+          handleGetFeedback();
+          e.preventDefault();
+          break;
         case " ":
           e.preventDefault();
           break;
@@ -187,7 +361,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [engine]);
+  }, [engine, handleBeatSync, handleGetFeedback]);
 
   useEffect(() => {
     if (!proMode) {
@@ -197,6 +371,12 @@ export default function Home() {
       return () => clearInterval(interval);
     }
   }, [proMode]);
+
+  useEffect(() => {
+    return () => {
+      if (challengeTimerRef.current) clearInterval(challengeTimerRef.current);
+    };
+  }, []);
 
   const showPhase = analysis.A && analysis.B;
   const visibleDecks: DeckId[] = fourDeckMode ? ["A", "B", "C", "D"] : ["A", "B"];
@@ -212,10 +392,34 @@ export default function Home() {
         <Deck
           which={deckId}
           state={engine.decks[deckId]}
-          color={DECK_COLORS[deckId]}
+          color={deckColors[deckId]}
           proMode={proMode}
           bpm={analysis[deckId]?.bpm || null}
-          onLoadFile={engine.loadFile}
+          onLoadFile={(file, d) => {
+            engine.loadFile(file, d);
+            const trackEntry: TrackEntry = {
+              id: crypto.randomUUID(),
+              name: file.name.replace(/\.[^.]+$/, ""),
+              bpm: null,
+              key: null,
+              duration: 0,
+              file,
+              addedAt: Date.now(),
+            };
+            setTracks(prev => {
+              if (prev.find(t => t.name === trackEntry.name)) return prev;
+              return [...prev, trackEntry];
+            });
+            setSetHistory(prev => [...prev, {
+              id: crypto.randomUUID(),
+              trackName: trackEntry.name,
+              deck: d,
+              startTime: Date.now(),
+              bpm: null,
+              key: null,
+              transition: "load",
+            }]);
+          }}
           onPlay={engine.playDeck}
           onPause={engine.pauseDeck}
           onSetRate={engine.setRate}
@@ -236,6 +440,10 @@ export default function Home() {
           onAnalyze={handleAnalyze}
           onSetStemGain={engine.setStemGain}
           onToggleStems={engine.toggleStems}
+          onBeatSync={handleBeatSync}
+          onSpinBack={engine.spinBack}
+          onBrake={engine.brake}
+          onEchoOut={engine.echoOut}
         />
         {harmonicMatches.length > 0 && camelotCode && (
           <div className="flex items-center gap-1.5 px-2 flex-wrap" data-testid={`harmonic-${deckId}`}>
@@ -248,7 +456,7 @@ export default function Home() {
                 key={m.deck}
                 variant="outline"
                 className="text-[10px] font-mono"
-                style={{ borderColor: DECK_COLORS[m.deck] }}
+                style={{ borderColor: deckColors[m.deck] }}
               >
                 {m.deck}: {m.camelot}
               </Badge>
@@ -258,6 +466,14 @@ export default function Home() {
       </div>
     );
   };
+
+  const panelButtons: { id: PanelId; icon: any; label: string }[] = [
+    { id: "visualizer", icon: Eye, label: "Visualizer" },
+    { id: "library", icon: Library, label: "Library" },
+    { id: "challenges", icon: Trophy, label: "Challenges" },
+    { id: "themes", icon: Palette, label: "Themes" },
+    { id: "midi", icon: Gamepad2, label: "MIDI" },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -304,6 +520,16 @@ export default function Home() {
             )}
             <Button
               size="sm"
+              variant="ghost"
+              onClick={handleGetFeedback}
+              disabled={!engine.decks.A.buffer || !engine.decks.B.buffer}
+              data-testid="button-get-feedback"
+            >
+              <Trophy className="w-3.5 h-3.5 mr-1.5" />
+              Rate Mix
+            </Button>
+            <Button
+              size="sm"
               variant={proMode ? "default" : "outline"}
               onClick={() => setProMode(!proMode)}
               data-testid="button-mode-toggle"
@@ -336,6 +562,8 @@ export default function Home() {
               <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">1-4</kbd> Hotcues A</span>
               <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">7-0</kbd> Hotcues B</span>
               <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">R</kbd> Rec Toggle</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">S</kbd> Sync B→A</span>
+              <span><kbd className="px-1 py-0.5 rounded bg-muted text-foreground">F</kbd> Mix Feedback</span>
             </div>
           </div>
         )}
@@ -379,23 +607,23 @@ export default function Home() {
             <CardContent className="py-4 space-y-3">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium" style={{ color: DECK_COLORS.C }}>C</span>
+                  <span className="text-xs font-medium" style={{ color: deckColors.C }}>C</span>
                   <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-75"
-                      style={{ width: `${engine.decks.C.vuLevel * 100}%`, backgroundColor: DECK_COLORS.C }}
+                      style={{ width: `${engine.decks.C.vuLevel * 100}%`, backgroundColor: deckColors.C }}
                     />
                   </div>
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Crossfade C↔D</span>
+                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Crossfade C-D</span>
                 <div className="flex items-center gap-2">
                   <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
                       className="h-full rounded-full transition-all duration-75 ml-auto"
-                      style={{ width: `${engine.decks.D.vuLevel * 100}%`, backgroundColor: DECK_COLORS.D }}
+                      style={{ width: `${engine.decks.D.vuLevel * 100}%`, backgroundColor: deckColors.D }}
                     />
                   </div>
-                  <span className="text-xs font-medium" style={{ color: DECK_COLORS.D }}>D</span>
+                  <span className="text-xs font-medium" style={{ color: deckColors.D }}>D</span>
                 </div>
               </div>
               <Slider
@@ -460,6 +688,80 @@ export default function Home() {
             pads={engine.samplePads}
             onPlaySample={engine.playSample}
             onLoadSample={engine.loadSampleFile}
+          />
+        )}
+
+        <div className="flex items-center gap-2 flex-wrap" data-testid="panel-toggles">
+          {panelButtons.map(({ id, icon: Icon, label }) => (
+            <Button
+              key={id}
+              size="sm"
+              variant={expandedPanels.has(id) ? "default" : "outline"}
+              onClick={() => togglePanel(id)}
+              data-testid={`button-panel-${id}`}
+            >
+              <Icon className="w-3.5 h-3.5 mr-1.5" />
+              {label}
+              {expandedPanels.has(id) ? (
+                <ChevronUp className="w-3 h-3 ml-1" />
+              ) : (
+                <ChevronDown className="w-3 h-3 ml-1" />
+              )}
+            </Button>
+          ))}
+        </div>
+
+        {expandedPanels.has("visualizer") && (
+          <Visualizer
+            analyzerDataA={engine.decks.A.analyzerData}
+            analyzerDataB={engine.decks.B.analyzerData}
+            isPlayingA={engine.decks.A.isPlaying}
+            isPlayingB={engine.decks.B.isPlaying}
+            colorA={deckColors.A}
+            colorB={deckColors.B}
+            vuA={engine.decks.A.vuLevel}
+            vuB={engine.decks.B.vuLevel}
+          />
+        )}
+
+        {expandedPanels.has("library") && (
+          <TrackLibrary
+            tracks={tracks}
+            playlists={playlists}
+            setHistory={setHistory}
+            onAddTrack={handleAddTrack}
+            onLoadTrackToDeck={handleLoadTrackToDeck}
+            onRemoveTrack={handleRemoveTrack}
+            onCreatePlaylist={handleCreatePlaylist}
+            onAddToPlaylist={handleAddToPlaylist}
+          />
+        )}
+
+        {expandedPanels.has("challenges") && (
+          <MixChallenges
+            results={challengeResults}
+            mixFeedback={mixFeedback}
+            onStartChallenge={handleStartChallenge}
+            activeChallenge={activeChallenge}
+            challengeTimeLeft={challengeTimeLeft}
+            onCompleteChallenge={handleCompleteChallenge}
+          />
+        )}
+
+        {expandedPanels.has("themes") && (
+          <ThemeSelector />
+        )}
+
+        {expandedPanels.has("midi") && (
+          <MidiController
+            onCrossfade={engine.updateCrossfadeAB}
+            onVolume={engine.setVolume}
+            onEQ={engine.setEQ}
+            onRate={engine.setRate}
+            onPlayPause={(deck) => {
+              engine.decks[deck].isPlaying ? engine.pauseDeck(deck) : engine.playDeck(deck);
+            }}
+            onCue={engine.setCue}
           />
         )}
       </main>

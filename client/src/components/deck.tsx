@@ -12,6 +12,7 @@ import type { DeckState, DeckId } from "@/hooks/use-audio-engine";
 import {
   Play, Pause, Upload, Disc3, Gauge, Navigation, SkipBack,
   Activity, Loader2, Volume2, Repeat, Layers, Music,
+  Zap, RotateCcw, Square, AudioLines,
 } from "lucide-react";
 
 interface DeckProps {
@@ -41,6 +42,10 @@ interface DeckProps {
   onAnalyze: (which: DeckId) => void;
   onSetStemGain?: (which: DeckId, stem: "bass" | "mid" | "high" | "vocals", gain: number) => void;
   onToggleStems?: (which: DeckId, enabled: boolean) => void;
+  onBeatSync?: (which: DeckId) => void;
+  onSpinBack?: (which: DeckId) => void;
+  onBrake?: (which: DeckId) => void;
+  onEchoOut?: (which: DeckId) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -66,6 +71,7 @@ export function Deck({
   onToggleFilter, onSetFilter, onSetReverb, onSetDelay,
   analysis, analyzing, onAnalyze,
   onSetStemGain, onToggleStems,
+  onBeatSync, onSpinBack, onBrake, onEchoOut,
 }: DeckProps) {
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -255,7 +261,55 @@ export function Deck({
             )}
             Analyze
           </Button>
+
+          {proMode && onBeatSync && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onBeatSync(which)}
+              disabled={!state.buffer}
+              data-testid={`button-sync-${which}`}
+            >
+              <Zap className="w-3.5 h-3.5 mr-1" />
+              Sync
+            </Button>
+          )}
         </div>
+
+        {proMode && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onSpinBack?.(which)}
+              disabled={!state.buffer || !!state.transitionEffect}
+              data-testid={`button-spinback-${which}`}
+            >
+              <RotateCcw className="w-3.5 h-3.5 mr-1" />
+              Spin
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onBrake?.(which)}
+              disabled={!state.buffer || !!state.transitionEffect}
+              data-testid={`button-brake-${which}`}
+            >
+              <Square className="w-3.5 h-3.5 mr-1" />
+              Brake
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => onEchoOut?.(which)}
+              disabled={!state.buffer || !!state.transitionEffect}
+              data-testid={`button-echoout-${which}`}
+            >
+              <AudioLines className="w-3.5 h-3.5 mr-1" />
+              Echo
+            </Button>
+          </div>
+        )}
 
         {proMode && (
           <div className="flex items-center gap-1 flex-wrap" data-testid={`hotcues-${which}`}>
