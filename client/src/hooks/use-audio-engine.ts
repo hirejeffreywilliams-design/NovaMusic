@@ -624,15 +624,26 @@ export function useAudioEngine() {
     }
   }, []);
 
-  const loadFile = useCallback(async (file: File, which: DeckId) => {
+  const loadFile = useCallback(async (file: File | string, which: DeckId) => {
     const ctx = getCtx();
-    const arrayBuffer = await file.arrayBuffer();
+    let arrayBuffer: ArrayBuffer;
+    let fileName: string;
+
+    if (typeof file === "string") {
+      const response = await fetch(file);
+      arrayBuffer = await response.arrayBuffer();
+      fileName = file.split("/").pop() || "Remote Track";
+    } else {
+      arrayBuffer = await file.arrayBuffer();
+      fileName = file.name;
+    }
+
     const buffer = await ctx.decodeAudioData(arrayBuffer);
     const waveformData = generateWaveform(buffer);
     setDeck(which, (prev) => ({
       ...prev,
       buffer,
-      fileName: file.name,
+      fileName,
       duration: buffer.duration,
       currentTime: 0,
       waveformData,

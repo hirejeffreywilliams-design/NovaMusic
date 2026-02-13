@@ -14,7 +14,8 @@ export interface TrackEntry {
   bpm: number | null;
   key: string | null;
   duration: number;
-  file: File;
+  file?: File;
+  url?: string;
   addedAt: number;
 }
 

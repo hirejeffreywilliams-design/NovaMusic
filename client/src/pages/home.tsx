@@ -190,7 +190,11 @@ export default function Home() {
   }, []);
 
   const handleLoadTrackToDeck = useCallback((track: TrackEntry, deck: DeckId) => {
-    engine.loadFile(track.file, deck);
+    if (track.url) {
+      engine.loadFile(track.url, deck);
+    } else if (track.file) {
+      engine.loadFile(track.file, deck);
+    }
     setSetHistory(prev => [...prev, {
       id: crypto.randomUUID(),
       trackName: track.name,
@@ -201,6 +205,30 @@ export default function Home() {
       transition: "load",
     }]);
   }, [engine.loadFile]);
+
+  const loadDemoTracks = useCallback(() => {
+    const demoTracks: TrackEntry[] = [
+      {
+        id: "demo-1",
+        name: "Techno Peak",
+        bpm: 128,
+        key: "A Minor",
+        duration: 240,
+        url: "https://raw.githubusercontent.com/replit/example-assets/main/techno_peak_128bpm.mp3",
+        addedAt: Date.now(),
+      },
+      {
+        id: "demo-2",
+        name: "House Grooves",
+        bpm: 124,
+        key: "C Major",
+        duration: 300,
+        url: "https://raw.githubusercontent.com/replit/example-assets/main/house_grooves_124bpm.mp3",
+        addedAt: Date.now(),
+      }
+    ];
+    setTracks(prev => [...prev, ...demoTracks]);
+  }, []);
 
   const handleRemoveTrack = useCallback((id: string) => {
     setTracks(prev => prev.filter(t => t.id !== id));
