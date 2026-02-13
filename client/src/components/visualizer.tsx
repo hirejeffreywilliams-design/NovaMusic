@@ -1,6 +1,19 @@
 import { useRef, useEffect, useCallback, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Maximize2, Minimize2 } from "lucide-react";
+
+function withAlpha(color: string, alpha: number): string {
+  const match = color.match(/^hsl\(([^)]+)\)$/i);
+  if (match) return `hsla(${match[1]}, ${alpha})`;
+  const hexMatch = color.match(/^#([0-9a-f]{6})$/i);
+  if (hexMatch) {
+    const r = parseInt(hexMatch[1].slice(0, 2), 16);
+    const g = parseInt(hexMatch[1].slice(2, 4), 16);
+    const b = parseInt(hexMatch[1].slice(4, 6), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  }
+  return color;
+}
 
 interface VisualizerProps {
   analyzerDataA: Float32Array | null;
@@ -61,13 +74,13 @@ export function Visualizer({
 
       const gradA = ctx.createLinearGradient(0, h, 0, h - hA);
       gradA.addColorStop(0, colorA);
-      gradA.addColorStop(1, colorA + "33");
+      gradA.addColorStop(1, withAlpha(colorA, 0.2));
       ctx.fillStyle = gradA;
       ctx.fillRect(i * (barWidth + gap), h - hA, barWidth, hA);
 
       const gradB = ctx.createLinearGradient(0, h, 0, h - hB);
       gradB.addColorStop(0, colorB);
-      gradB.addColorStop(1, colorB + "33");
+      gradB.addColorStop(1, withAlpha(colorB, 0.2));
       ctx.fillStyle = gradB;
       ctx.fillRect(w - (i + 1) * (barWidth + gap), h - hB, barWidth, hB);
     }
@@ -138,7 +151,7 @@ export function Visualizer({
 
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fillStyle = p.color + Math.floor(p.life * 255).toString(16).padStart(2, "0");
+      ctx.fillStyle = withAlpha(p.color, p.life);
       ctx.fill();
     }
 
