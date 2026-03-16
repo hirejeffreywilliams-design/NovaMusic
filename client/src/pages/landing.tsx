@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Music, Headphones, PartyPopper, Disc3, Mic2, Radio, Zap, Volume2, Sparkles } from "lucide-react";
+import { Music, Headphones, PartyPopper, Disc3, Mic2, Radio, Zap, Volume2, Sparkles, ChevronDown } from "lucide-react";
 
 function ParticleField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -95,9 +95,48 @@ function EQBars() {
   );
 }
 
+const HOW_IT_WORKS = [
+  {
+    step: "1",
+    emoji: "🎵",
+    title: "Load Your Songs",
+    desc: "Tap Load on either deck and pick any song from your phone. No special files needed — MP3, WAV, anything works!",
+    color: "#bf5af2",
+  },
+  {
+    step: "2",
+    emoji: "▶️",
+    title: "Hit Play & Vibe",
+    desc: "Press Play and let the music flow. The spinning turntable means it's playing. Load a second song on Deck B for even more fun!",
+    color: "#0af",
+  },
+  {
+    step: "3",
+    emoji: "🎛️",
+    title: "Blend Between Songs",
+    desc: "Drag the crossfader slider to smoothly blend from one song to another. Left = Deck A, Right = Deck B. Easy!",
+    color: "#ff2d78",
+  },
+  {
+    step: "4",
+    emoji: "⚡",
+    title: "Drop the Sound FX",
+    desc: "Hit the colorful buttons — Air Horn, Bass Drop, Siren and more! Great for hyping up the crowd at the right moment.",
+    color: "#ffd60a",
+  },
+  {
+    step: "5",
+    emoji: "🎙️",
+    title: "Speak Over the Music",
+    desc: "Turn on the Mic to talk through your phone while music plays. Hype everyone up or make shoutouts like a real DJ!",
+    color: "#30d158",
+  },
+];
+
 export default function Landing() {
   const [, navigate] = useLocation();
   const [loaded, setLoaded] = useState(false);
+  const [showHow, setShowHow] = useState(false);
 
   useEffect(() => {
     setLoaded(true);
@@ -127,12 +166,12 @@ export default function Landing() {
           <EQBars />
         </nav>
 
-        <main className="flex-1 flex flex-col items-center justify-center px-6 pb-20">
-          <div className={`text-center max-w-4xl mx-auto transition-all duration-1000 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
+        <main className="flex-1 flex flex-col items-center px-6 pb-20">
+          <div className={`text-center max-w-4xl mx-auto pt-8 pb-12 transition-all duration-1000 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
             <div className="flex items-center justify-center gap-3 mb-6">
               <Sparkles className="w-6 h-6 text-[#ffd60a]" />
               <span className="text-sm uppercase tracking-[0.3em] text-[#ffd60a] font-semibold" data-testid="text-tagline">
-                The Future of Party DJing
+                For Parties, Family Events & Good Times
               </span>
               <Sparkles className="w-6 h-6 text-[#ffd60a]" />
             </div>
@@ -145,35 +184,19 @@ export default function Landing() {
               <span className="text-white/90">ANYWHERE</span>
             </h1>
 
-            <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-12 leading-relaxed" data-testid="text-description">
-              Professional-grade DJ mixing meets party-ready simplicity.
-              Four decks, infinite possibilities. Let everyone at the party feel like a DJ.
+            <p className="text-lg md:text-xl text-white/60 max-w-2xl mx-auto mb-4 leading-relaxed" data-testid="text-description">
+              No DJ experience? No problem! DJ Hybrid lets <strong className="text-white/80">anyone</strong> mix music, drop sound effects, and speak over the music at parties and events — right from your phone.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto">
-              <button
-                onClick={() => navigate("/console")}
-                className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
-                style={{ background: "linear-gradient(135deg, #bf5af2, #0af)" }}
-                data-testid="button-launch-console"
-              >
-                <div className="relative rounded-2xl bg-[#0a0519]/90 p-8 flex flex-col items-center gap-4 group-hover:bg-[#0a0519]/70 transition-colors">
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(191,90,242,0.1), transparent 70%)" }} />
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center neon-glow-purple relative z-10" style={{ background: "linear-gradient(135deg, #bf5af2, #8b5cf6)" }}>
-                    <Headphones className="w-8 h-8 text-white" />
-                  </div>
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold text-white mb-1">DJ Console</h3>
-                    <p className="text-sm text-white/50">Full pro mixing experience</p>
-                  </div>
-                  <div className="flex gap-2 mt-2 relative z-10">
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#bf5af2]/20 text-[#bf5af2] border border-[#bf5af2]/30">4 Decks</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#0af]/20 text-[#0af] border border-[#0af]/30">FX Rack</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff2d78]/20 text-[#ff2d78] border border-[#ff2d78]/30">Soundboard</span>
-                  </div>
-                </div>
-              </button>
+            <div className="flex items-center justify-center gap-2 mb-10">
+              {["🎉 No experience needed", "📱 Works on any phone", "🎙️ Built-in microphone"].map((tag) => (
+                <span key={tag} className="text-[11px] px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-white/40">
+                  {tag}
+                </span>
+              ))}
+            </div>
 
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto mb-10">
               <button
                 onClick={() => navigate("/party")}
                 className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
@@ -186,38 +209,98 @@ export default function Landing() {
                     <PartyPopper className="w-8 h-8 text-white" />
                   </div>
                   <div className="relative z-10">
-                    <h3 className="text-xl font-bold text-white mb-1">Party Mode</h3>
-                    <p className="text-sm text-white/50">Everyone gets to DJ</p>
+                    <div className="text-[10px] uppercase tracking-widest text-[#ffd60a] mb-1 font-semibold">Recommended</div>
+                    <h3 className="text-xl font-bold text-white mb-1">🎉 Party Mode</h3>
+                    <p className="text-sm text-white/50">Simple & fun for everyone</p>
                   </div>
-                  <div className="flex gap-2 mt-2 relative z-10">
+                  <div className="flex flex-wrap gap-2 mt-2 relative z-10 justify-center">
                     <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff2d78]/20 text-[#ff2d78] border border-[#ff2d78]/30">Easy Mix</span>
                     <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff9500]/20 text-[#ff9500] border border-[#ff9500]/30">Sound FX</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#30d158]/20 text-[#30d158] border border-[#30d158]/30">Mobile Ready</span>
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#30d158]/20 text-[#30d158] border border-[#30d158]/30">Mic Built-in</span>
+                  </div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => navigate("/console")}
+                className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
+                style={{ background: "linear-gradient(135deg, #bf5af2, #0af)" }}
+                data-testid="button-launch-console"
+              >
+                <div className="relative rounded-2xl bg-[#0a0519]/90 p-8 flex flex-col items-center gap-4 group-hover:bg-[#0a0519]/70 transition-colors">
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(191,90,242,0.1), transparent 70%)" }} />
+                  <div className="w-16 h-16 rounded-full flex items-center justify-center neon-glow-purple relative z-10" style={{ background: "linear-gradient(135deg, #bf5af2, #8b5cf6)" }}>
+                    <Headphones className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="relative z-10">
+                    <div className="text-[10px] uppercase tracking-widest text-[#bf5af2]/60 mb-1 font-semibold">Advanced</div>
+                    <h3 className="text-xl font-bold text-white mb-1">🎧 DJ Console</h3>
+                    <p className="text-sm text-white/50">Full pro mixing experience</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2 relative z-10 justify-center">
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#bf5af2]/20 text-[#bf5af2] border border-[#bf5af2]/30">4 Decks</span>
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#0af]/20 text-[#0af] border border-[#0af]/30">FX Rack</span>
+                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff2d78]/20 text-[#ff2d78] border border-[#ff2d78]/30">Visualizer</span>
                   </div>
                 </div>
               </button>
             </div>
+
+            <button
+              onClick={() => setShowHow(!showHow)}
+              className="flex items-center gap-2 mx-auto text-sm text-white/40 hover:text-white/60 transition-colors"
+              data-testid="button-how-it-works"
+            >
+              <span>How does it work?</span>
+              <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${showHow ? "rotate-180" : ""}`} />
+            </button>
           </div>
 
-          <div className={`grid grid-cols-2 md:grid-cols-4 gap-6 mt-20 max-w-3xl mx-auto transition-all duration-1000 delay-500 ${loaded ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}>
-            {[
-              { icon: Music, label: "4-Deck Mixing", color: "#bf5af2" },
-              { icon: Zap, label: "Real-time FX", color: "#0af" },
-              { icon: Volume2, label: "Soundboard", color: "#ff2d78" },
-              { icon: Radio, label: "Live Visualizer", color: "#30d158" },
-            ].map(({ icon: Icon, label, color }) => (
-              <div key={label} className="flex flex-col items-center gap-2 text-center" data-testid={`feature-${label.toLowerCase().replace(/\s/g, '-')}`}>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `${color}15`, border: `1px solid ${color}30` }}>
-                  <Icon className="w-6 h-6" style={{ color }} />
+          {showHow && (
+            <div className="w-full max-w-2xl mx-auto space-y-4 pb-16 animate-slide-in-up">
+              <h2 className="text-center text-lg font-black text-white/80 mb-6">
+                🎓 How to DJ in 5 Easy Steps
+              </h2>
+              {HOW_IT_WORKS.map(({ step, emoji, title, desc, color }) => (
+                <div
+                  key={step}
+                  className="glass-panel rounded-2xl p-4 flex items-start gap-4"
+                  style={{ borderColor: `${color}20` }}
+                >
+                  <div
+                    className="w-10 h-10 rounded-full shrink-0 flex items-center justify-center text-lg font-black text-white"
+                    style={{ background: `${color}25`, border: `1.5px solid ${color}40` }}
+                  >
+                    {emoji}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-white mb-1">
+                      <span className="text-white/30 mr-2">Step {step}</span>
+                      {title}
+                    </div>
+                    <p className="text-xs text-white/50 leading-relaxed">{desc}</p>
+                  </div>
                 </div>
-                <span className="text-xs text-white/50 font-medium">{label}</span>
+              ))}
+              <div className="text-center pt-4">
+                <button
+                  onClick={() => navigate("/party")}
+                  className="px-8 py-4 rounded-2xl font-black text-white text-base transition-all hover:scale-[1.03]"
+                  style={{
+                    background: "linear-gradient(135deg, #ff2d78, #ff9500)",
+                    boxShadow: "0 0 30px rgba(255,45,120,0.3), 0 0 60px rgba(255,149,0,0.15)",
+                  }}
+                  data-testid="button-start-party-bottom"
+                >
+                  🎉 Start the Party Now!
+                </button>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </main>
 
         <footer className="text-center py-6 text-white/20 text-xs tracking-wider">
-          DJ HYBRID &middot; PROPRIETARY
+          DJ HYBRID &middot; Made for everyone at the party 🎉
         </footer>
       </div>
     </div>

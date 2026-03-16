@@ -6,9 +6,10 @@ import { MixerPanel } from "@/components/mixer-panel";
 import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2 } from "lucide-react";
+import { Microphone } from "@/components/microphone";
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic";
 
 export default function DJConsole() {
   const [, navigate] = useLocation();
@@ -32,6 +33,7 @@ export default function DJConsole() {
     { id: "fx", label: "FX Rack", icon: Sliders },
     { id: "soundboard", label: "Pads", icon: Music },
     { id: "visualizer", label: "Visual", icon: Waves },
+    { id: "mic", label: "Mic", icon: Mic2 },
   ];
 
   return (
@@ -98,6 +100,11 @@ export default function DJConsole() {
         {activeTab === "fx" && <FXPanel engine={engine} />}
         {activeTab === "soundboard" && <SoundboardPanel engine={engine} />}
         {activeTab === "visualizer" && <VisualizerPanel engine={engine} />}
+        {activeTab === "mic" && (
+          <div className="max-w-md mx-auto pt-4">
+            <Microphone audioCtxGetter={engine.getCtx} masterNode={null} />
+          </div>
+        )}
       </main>
     </div>
   );

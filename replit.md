@@ -33,11 +33,14 @@ Preferred communication style: Simple, everyday language.
 
 ### Key Components
 
-- `DeckPanel` (`client/src/components/deck-panel.tsx`) — Individual deck with waveform display, play/pause, cue, speed/volume controls, 3-band EQ, loop controls (0.5-16 beats), 4 hot cues, collapsible advanced section
-- `MixerPanel` (`client/src/components/mixer-panel.tsx`) — Dual crossfaders (A/B and C/D for 4-deck mode), master gain, preset selection (Clean/Club/Radio), VU meters, recording controls
+- `DeckPanel` (`client/src/components/deck-panel.tsx`) — Individual deck with animated spinning turntable, waveform display, play/pause, cue, speed/volume controls, 3-band EQ, loop controls (0.5-16 beats), 4 hot cues
+- `MixerPanel` (`client/src/components/mixer-panel.tsx`) — Dual crossfaders (A/B and C/D for 4-deck mode), master gain, preset selection, VU meters, recording controls
 - `SoundboardPanel` (`client/src/components/soundboard-panel.tsx`) — 8 sample pads with custom sound loading, visual feedback on trigger
 - `VisualizerPanel` (`client/src/components/visualizer-panel.tsx`) — 6 visualization modes (Bars, Circular, Particles, Wave, Spectrum, Matrix) using canvas rendering
 - `FXPanel` (`client/src/components/fx-panel.tsx`) — Per-deck FX controls with visual knobs: Filter (LPF/HPF), Reverb, Delay, 3-band EQ
+- `Turntable` (`client/src/components/turntable.tsx`) — Animated spinning vinyl record canvas component, spins when playing, glows with deck color, accepts any hex color including shorthand (#0af)
+- `Microphone` (`client/src/components/microphone.tsx`) — Live microphone input via Web Audio API, routes phone mic through music output, has gain slider and real-time VU meter bars, works in both Party Mode and DJ Console
+- `BeginnerTips` / `TipBubble` (`client/src/components/beginner-tips.tsx`) — Step-by-step tutorial overlay for first-time users (6 steps), dismissable tip bubble for contextual hints
 
 ### Audio Engine
 

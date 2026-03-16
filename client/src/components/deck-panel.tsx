@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { DeckId } from "@/hooks/use-audio-engine";
 import { Play, Pause, SkipBack, Upload, RotateCcw, Repeat, Disc3, ChevronUp, ChevronDown } from "lucide-react";
+import { Turntable } from "@/components/turntable";
 
 interface DeckPanelProps {
   deckId: DeckId;
@@ -130,7 +131,11 @@ export function DeckPanel({ deckId, engine, color }: DeckPanelProps) {
         <input ref={fileInputRef} type="file" accept="audio/*" onChange={handleFile} className="hidden" />
       </div>
 
-      <div className="flex-1 min-h-[60px] max-h-[100px]">
+      <div className="flex justify-center py-1">
+        <Turntable isPlaying={deck.isPlaying} color={color} size={100} deckLabel={deckId} />
+      </div>
+
+      <div className="flex-1 min-h-[60px] max-h-[80px]">
         <WaveformDisplay
           waveformData={deck.waveformData}
           currentTime={deck.currentTime}
