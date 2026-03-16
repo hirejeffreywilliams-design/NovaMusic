@@ -711,6 +711,10 @@ export function useAudioEngine() {
 
   const setVolume = useCallback((which: DeckId, vol: number) => {
     setDeck(which, (prev) => ({ ...prev, volume: vol }));
+    const nodes = nodesRef.current[which];
+    if (nodes && ctxRef.current) {
+      nodes.gain.gain.setValueAtTime(vol, ctxRef.current.currentTime);
+    }
   }, [setDeck]);
 
   const setCue = useCallback((which: DeckId) => {
@@ -749,10 +753,9 @@ export function useAudioEngine() {
     setDeck(which, (prev) => ({ ...prev, eq: { ...prev.eq, [band]: value } }));
     const nodes = nodesRef.current[which];
     if (!nodes) return;
-    const dbValue = value * 12;
-    if (band === "low") nodes.eqLow.gain.setValueAtTime(dbValue, ctxRef.current!.currentTime);
-    if (band === "mid") nodes.eqMid.gain.setValueAtTime(dbValue, ctxRef.current!.currentTime);
-    if (band === "high") nodes.eqHigh.gain.setValueAtTime(dbValue, ctxRef.current!.currentTime);
+    if (band === "low") nodes.eqLow.gain.setValueAtTime(value, ctxRef.current!.currentTime);
+    if (band === "mid") nodes.eqMid.gain.setValueAtTime(value, ctxRef.current!.currentTime);
+    if (band === "high") nodes.eqHigh.gain.setValueAtTime(value, ctxRef.current!.currentTime);
   }, [setDeck]);
 
   const setFilter = useCallback((which: DeckId, freq: number, type: "lowpass" | "highpass") => {

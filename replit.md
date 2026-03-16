@@ -1,8 +1,13 @@
-# DJ Hybrid - Professional 4-Deck Mixer
+# DJ Hybrid - Professional 4-Deck Mixer + Party Mode
 
 ## Overview
 
-This is a browser-based professional 2/4-deck DJ mixer application with Beginner and Pro modes. It provides real-time audio crossfading (dual crossfaders for 4-deck), 3-band EQ, audio effects (reverb/delay/filter), loop controls (including micro-loops at 0.5/1/2/4/8/16 beats), hotcue points with intelligent auto-placement (detects intro/build/drop/outro), waveform visualization with zoom (1x-16x) and beat grid markers, VU meters, BPM/key detection with harmonic compatibility analysis (Camelot wheel), mix recording, BPM-aware auto-mix, 8-pad sampler with built-in synthesized samples, beat-phase alignment indicator, keyboard shortcuts for pro controls, beginner coaching tips, beat sync button, transition effects (spinback/brake/echo-out), visual theme engine with 6 color schemes, full-screen visualizer with 4 modes, track library with playlist management, set history logging, guided mix challenges with scoring, mix feedback/rating system, mastering chain with presets, and MIDI controller support — all running primarily client-side using the Web Audio API. The backend is a lightweight Express server that serves the frontend and provides mix suggestion and analysis endpoints.
+DJ Hybrid is a browser-based professional DJ mixing platform with two distinct experiences:
+
+1. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer
+2. **Party Mode (Sister App)** — Simplified, mobile-first DJ experience designed for party guests to drop beats and trigger sound effects
+
+The app features a vibrant neon party aesthetic with purple, blue, pink, and green accents, glow effects, glass-morphism panels, and smooth animations throughout.
 
 ## User Preferences
 
@@ -13,97 +18,64 @@ Preferred communication style: Simple, everyday language.
 ### Frontend
 
 - **Framework**: React 18 with TypeScript
-- **Routing**: Wouter (lightweight alternative to React Router)
-- **State Management**: React hooks and TanStack React Query for server state
+- **Routing**: Wouter — 3 routes: Landing (`/`), DJ Console (`/console`), Party Mode (`/party`)
+- **State Management**: React hooks and TanStack React Query
 - **UI Components**: shadcn/ui (new-york style) built on Radix UI primitives
-- **Styling**: Tailwind CSS with CSS variables for theming (light/dark mode support)
+- **Styling**: Tailwind CSS with neon party theme (dark-first, purple/blue/pink/green accents)
 - **Build Tool**: Vite with React plugin
 - **Path Aliases**: `@/` maps to `client/src/`, `@shared/` maps to `shared/`
 
-Key custom components:
-- `Deck` (`client/src/components/deck.tsx`) - Individual DJ deck with play/pause, rate control, cue points, hotcues, loop controls, EQ, FX rack, file loading, and waveform display. Supports Beginner/Pro mode toggle.
-- `Mixer` (`client/src/components/mixer.tsx`) - Crossfader with VU level indicators, recording controls, and BPM-aware auto-mix functionality
-- `Waveform` (`client/src/components/waveform.tsx`) - Canvas-based waveform visualization with playback progress, seek support, hotcue markers, loop regions, and cue point indicators
-- `VUMeter` (`client/src/components/vu-meter.tsx`) - Canvas-based segmented VU meter supporting vertical and horizontal orientations with color-coded levels
-- `EQKnob` (`client/src/components/eq-knob.tsx`) - Rotary knob control with drag-to-rotate interaction for EQ band adjustment
-- `FXRack` (`client/src/components/fx-rack.tsx`) - Audio effects panel with toggleable filter (LPF/HPF), reverb, and delay with parameter controls
-- `ThemeProvider` (`client/src/components/theme-provider.tsx`) - Dark/light theme toggle with localStorage persistence
-- `ThemeSelector` (`client/src/components/theme-engine.tsx`) - Visual theme engine with 6 color schemes (Neon Club, Minimal, Retro Vinyl, Sunset, Ice, Matrix) affecting deck colors and accent hues
-- `Visualizer` (`client/src/components/visualizer.tsx`) - Canvas-based full-screen visualizer with 4 modes (bars, circular, particles, wave) using analyzer data from both decks
-- `TrackLibrary` (`client/src/components/track-library.tsx`) - Track library with search, playlist management, file import, and set history tracking with timestamps
-- `MixChallenges` (`client/src/components/mix-challenges.tsx`) - Guided mix challenges with 6 challenges, scoring, timer, and real-time mix feedback on beat alignment, volume consistency, and transition smoothness
-- `MidiController` (`client/src/components/midi-controller.tsx`) - MIDI controller support using Web MIDI API with default mappings for crossfade, EQ, volume, and playback controls
+### Pages
 
-Key custom hooks:
-- `useAudioEngine` (`client/src/hooks/use-audio-engine.ts`) - Core audio engine using Web Audio API. Manages two decks (A & B) with full signal chain: source → 3-band EQ (low shelf/peaking/high shelf) → filter → delay (with feedback) → reverb (convolver) → gain → analyzer → master. Includes crossfading, playback control, loop management, hotcue storage, recording via MediaRecorder, VU metering, and BPM-aware auto-mix with smooth S-curve transitions.
+- `client/src/pages/landing.tsx` — Animated landing page with particle effects, gradient text, and navigation to both experiences
+- `client/src/pages/dj-console.tsx` — Pro DJ console with tabbed views (Decks, FX Rack, Sound Pads, Visualizer), 2/4 deck toggle, fullscreen mode
+- `client/src/pages/party-mode.tsx` — Mobile-optimized party experience with 2 decks, crossfader, 12 synthesized party sound FX pads, quick actions
+
+### Key Components
+
+- `DeckPanel` (`client/src/components/deck-panel.tsx`) — Individual deck with waveform display, play/pause, cue, speed/volume controls, 3-band EQ, loop controls (0.5-16 beats), 4 hot cues, collapsible advanced section
+- `MixerPanel` (`client/src/components/mixer-panel.tsx`) — Dual crossfaders (A/B and C/D for 4-deck mode), master gain, preset selection (Clean/Club/Radio), VU meters, recording controls
+- `SoundboardPanel` (`client/src/components/soundboard-panel.tsx`) — 8 sample pads with custom sound loading, visual feedback on trigger
+- `VisualizerPanel` (`client/src/components/visualizer-panel.tsx`) — 6 visualization modes (Bars, Circular, Particles, Wave, Spectrum, Matrix) using canvas rendering
+- `FXPanel` (`client/src/components/fx-panel.tsx`) — Per-deck FX controls with visual knobs: Filter (LPF/HPF), Reverb, Delay, 3-band EQ
+
+### Audio Engine
+
+- `client/src/hooks/use-audio-engine.ts` — Core Web Audio API engine supporting 4 decks
+- Full signal chain per deck: source → stems → 3-band EQ → filter → delay → reverb → gain → analyzer → master
+- Mastering chain: compressor → master gain → destination
+- Features: BPM detection, key detection, beat grid, auto-mix, hot cues with auto-placement, loop controls, stem isolation, transition effects (spinback/brake/echo-out), 8-pad sampler with synthesized sounds, mix recording
 
 ### Backend
 
-- **Runtime**: Node.js with TypeScript (tsx for development, esbuild for production)
+- **Runtime**: Node.js with TypeScript (tsx for development)
 - **Framework**: Express.js
-- **API**: `POST /api/analyze` for file analysis (placeholder — real analysis happens client-side), `POST /api/mix-suggestion` for BPM/key-aware transition recommendations with harmonic compatibility (Camelot wheel)
-- **File Uploads**: Multer (stores to OS temp directory)
-- **Dev Server**: Vite dev server integrated as Express middleware with HMR
-- **Production**: Static file serving from `dist/public`
+- **API**: `POST /api/analyze` (placeholder), `POST /api/mix-suggestion` (harmonic compatibility via Camelot wheel)
+- **File Uploads**: Multer
 
 ### Database
 
 - **ORM**: Drizzle ORM configured for PostgreSQL
-- **Schema**: Defined in `shared/schema.ts` — currently contains a basic `users` table (id, username, password)
-- **Migrations**: Drizzle Kit with `db:push` command
-- **Current Storage**: In-memory storage (`MemStorage` class in `server/storage.ts`) — database is set up in config but not actively connected in routes. The `DATABASE_URL` environment variable is required by drizzle config.
-
-### Audio Processing Architecture
-
-The core design decision is **client-side-first audio processing**:
-- Real-time mixing, crossfading, and playback use the Web Audio API directly in the browser for minimal latency
-- Full per-deck signal chain: source → 3-band EQ (BiquadFilter) → filter (LPF/HPF) → delay (with feedback loop) → reverb (ConvolverNode with generated impulse response) → gain → analyzer → master
-- BPM detection and key estimation run client-side using OfflineAudioContext
-- Loop controls use BPM-derived beat durations for beat-accurate loop lengths
-- VU metering uses AnalyserNode frequency data (RMS calculation)
-- BPM-aware auto-mix: tempo-syncs Deck B to Deck A, uses smooth S-curve crossfade aligned to beat grid, resets rate after transition
-- Mix recording uses MediaRecorder API capturing from a MediaStreamAudioDestinationNode
-- The server `/api/mix-suggestion` endpoint provides harmonic compatibility analysis using Camelot wheel mapping and transition recommendations
+- **Schema**: Basic `users` table in `shared/schema.ts`
+- **Current Storage**: In-memory storage
 
 ### Build System
 
-- **Development**: `tsx server/index.ts` runs the Express server with Vite middleware for HMR
-- **Production Build**: Custom build script (`script/build.ts`) that:
-  1. Runs Vite build for the client (outputs to `dist/public`)
-  2. Runs esbuild for the server (outputs to `dist/index.cjs`)
-  3. Bundles select server dependencies to reduce cold start syscalls
-- **Production Start**: `node dist/index.cjs`
+- **Development**: `tsx server/index.ts` with Vite middleware for HMR
+- **Production**: Custom build script, outputs to `dist/`
 
-### Shared Code
+### Design System
 
-The `shared/` directory contains code used by both frontend and backend:
-- `schema.ts` - Drizzle database schema and Zod validation schemas (via drizzle-zod)
+- Dark-first neon party theme
+- CSS custom properties for neon colors: `--neon-purple`, `--neon-blue`, `--neon-pink`, `--neon-green`, `--neon-orange`, `--neon-yellow`, `--neon-cyan`, `--neon-red`
+- Glass-morphism panels with backdrop blur
+- Glow effects via CSS box-shadow
+- Custom animations: neon-pulse, gradient-shift, vinyl-spin, beat-pulse, eq-bounce, slide-in-up
+- Responsive layout — mobile-optimized Party Mode
 
 ## External Dependencies
 
-### Database
-- **PostgreSQL** - Required via `DATABASE_URL` environment variable. Used with Drizzle ORM. Schema push via `drizzle-kit push`.
-
 ### Key NPM Packages
-- **drizzle-orm** + **drizzle-zod** - Database ORM and schema validation
-- **express** - HTTP server framework
-- **multer** - Multipart file upload handling
-- **@tanstack/react-query** - Async state management for API calls
-- **wouter** - Client-side routing
-- **zod** - Schema validation
-- **shadcn/ui ecosystem** - Radix UI primitives, class-variance-authority, clsx, tailwind-merge, lucide-react icons
-- **recharts** - Charting library (available via shadcn chart component)
-- **embla-carousel-react** - Carousel component
-- **vaul** - Drawer component
-- **react-day-picker** + **date-fns** - Calendar/date components
-- **input-otp** - OTP input component
-- **react-resizable-panels** - Resizable panel layouts
-- **connect-pg-simple** - PostgreSQL session store (available but not currently wired up)
-
-### Replit-Specific
-- `@replit/vite-plugin-runtime-error-modal` - Runtime error overlay in development
-- `@replit/vite-plugin-cartographer` - Dev tooling (conditionally loaded)
-- `@replit/vite-plugin-dev-banner` - Dev banner (conditionally loaded)
-
-### No External APIs Currently Integrated
-The project has dependencies for OpenAI, Google Generative AI, Stripe, Nodemailer, Passport, and JWT available in the build allowlist but none are currently wired into the application code. These suggest planned future features (AI auto-mixing, payments, auth, email).
+- drizzle-orm, drizzle-zod, express, multer, @tanstack/react-query, wouter, zod
+- shadcn/ui ecosystem (Radix UI, cva, clsx, tailwind-merge, lucide-react)
+- No external APIs currently integrated
