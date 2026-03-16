@@ -41,6 +41,9 @@ Preferred communication style: Simple, everyday language.
 - `Turntable` (`client/src/components/turntable.tsx`) — Animated spinning vinyl record canvas component, spins when playing, glows with deck color, accepts any hex color including shorthand (#0af)
 - `Microphone` (`client/src/components/microphone.tsx`) — Live microphone input via Web Audio API, routes phone mic through music output, has gain slider and real-time VU meter bars, works in both Party Mode and DJ Console
 - `BeginnerTips` / `TipBubble` (`client/src/components/beginner-tips.tsx`) — Step-by-step tutorial overlay for first-time users (6 steps), dismissable tip bubble for contextual hints
+- `SongQueue` (`client/src/components/song-queue.tsx`) — Collapsible playlist/queue manager per deck; supports multi-file upload, folder upload (webkitdirectory), reorder, remove, auto-advance to next song when track ends
+- `AudioOutput` (`client/src/components/audio-output.tsx`) — Bluetooth/audio device selector using `navigator.mediaDevices.enumerateDevices()`; lists all audio outputs including Bluetooth devices; uses `AudioContext.setSinkId()` where supported (Chrome 110+); includes step-by-step Bluetooth guide for unsupported browsers
+- `PlatformSync` (`client/src/components/platform-sync.tsx`) — Music platform connection UI; local file upload and folder import are READY; Apple Music, Spotify, YouTube Music, SoundCloud marked as COMING SOON with honest explanations
 
 ### Audio Engine
 

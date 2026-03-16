@@ -6,10 +6,12 @@ import { MixerPanel } from "@/components/mixer-panel";
 import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2 } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings } from "lucide-react";
 import { Microphone } from "@/components/microphone";
+import { AudioOutput } from "@/components/audio-output";
+import { PlatformSync } from "@/components/platform-sync";
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "settings";
 
 export default function DJConsole() {
   const [, navigate] = useLocation();
@@ -34,6 +36,7 @@ export default function DJConsole() {
     { id: "soundboard", label: "Pads", icon: Music },
     { id: "visualizer", label: "Visual", icon: Waves },
     { id: "mic", label: "Mic", icon: Mic2 },
+    { id: "settings", label: "Setup", icon: Settings },
   ];
 
   return (
@@ -103,6 +106,18 @@ export default function DJConsole() {
         {activeTab === "mic" && (
           <div className="max-w-md mx-auto pt-4">
             <Microphone audioCtxGetter={engine.getCtx} masterNode={null} />
+          </div>
+        )}
+        {activeTab === "settings" && (
+          <div className="max-w-lg mx-auto pt-4 space-y-5 overflow-y-auto pb-4">
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🔵 Bluetooth & Audio Output</h3>
+              <AudioOutput audioCtxGetter={engine.getCtx} />
+            </div>
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🎵 Music Sources & Platforms</h3>
+              <PlatformSync />
+            </div>
           </div>
         )}
       </main>
