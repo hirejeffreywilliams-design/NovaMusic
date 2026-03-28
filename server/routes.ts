@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import fs from "fs";
 import os from "os";
+import { registerAIDJRoutes } from "./ai-dj";
 
 const upload = multer({ dest: os.tmpdir() });
 
@@ -76,6 +77,8 @@ export async function registerRoutes(
 
     return res.json(suggestion);
   });
+
+  registerAIDJRoutes(app);
 
   return httpServer;
 }

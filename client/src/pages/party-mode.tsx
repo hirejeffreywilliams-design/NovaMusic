@@ -7,6 +7,7 @@ import { BeginnerTips, TipBubble } from "@/components/beginner-tips";
 import { SongQueue, QueuedSong } from "@/components/song-queue";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
+import { AIDJAssistant } from "@/components/ai-dj-assistant";
 import {
   ArrowLeft, Play, Pause, Upload, HelpCircle,
   Sparkles, Zap, ChevronRight, ChevronLeft, Settings,
@@ -121,7 +122,7 @@ function generatePartySound(ctx: AudioContext, type: string, freq: number) {
   }
 }
 
-type PartySection = "mix" | "fx" | "mic" | "settings";
+type PartySection = "mix" | "fx" | "mic" | "ai" | "settings";
 
 export default function PartyMode() {
   const [, navigate] = useLocation();
@@ -279,6 +280,7 @@ export default function PartyMode() {
     { id: "mix", label: "Mix", emoji: "🎛️" },
     { id: "fx", label: "Sound FX", emoji: "⚡" },
     { id: "mic", label: "Mic", emoji: "🎙️" },
+    { id: "ai", label: "AI DJ", emoji: "✨" },
     { id: "settings", label: "Setup", emoji: "⚙️" },
   ];
 
@@ -559,6 +561,33 @@ export default function PartyMode() {
               <Microphone audioCtxGetter={engine.getCtx} masterNode={null} />
             </div>
             <TipBubble text="Turn on your mic to speak over the music! Great for hyping up the crowd or making announcements 🎙️" />
+          </div>
+        )}
+
+        {activeSection === "ai" && (
+          <div className="animate-slide-in-up">
+            <AIDJAssistant
+              deckA={{
+                fileName: deckA.fileName,
+                isPlaying: deckA.isPlaying,
+                bpm: undefined,
+                key: undefined,
+                duration: deckA.duration,
+                buffer: deckA.buffer,
+              }}
+              deckB={{
+                fileName: deckB.fileName,
+                isPlaying: deckB.isPlaying,
+                bpm: undefined,
+                key: undefined,
+                duration: deckB.duration,
+                buffer: deckB.buffer,
+              }}
+              queue={[...queueA, ...queueB].map(q => ({ name: q.name, duration: q.duration }))}
+              engine={engine}
+              compact={true}
+            />
+            <TipBubble text="AI DJ analyzes your music and helps you mix like a pro! Load some songs and tap Smart Playlist to get started ✨" />
           </div>
         )}
 

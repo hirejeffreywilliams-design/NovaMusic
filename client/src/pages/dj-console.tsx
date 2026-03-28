@@ -6,12 +6,13 @@ import { MixerPanel } from "@/components/mixer-panel";
 import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
+import { AIDJAssistant } from "@/components/ai-dj-assistant";
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "settings";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "settings";
 
 export default function DJConsole() {
   const [, navigate] = useLocation();
@@ -36,6 +37,7 @@ export default function DJConsole() {
     { id: "soundboard", label: "Pads", icon: Music },
     { id: "visualizer", label: "Visual", icon: Waves },
     { id: "mic", label: "Mic", icon: Mic2 },
+    { id: "ai", label: "AI DJ", icon: Sparkles },
     { id: "settings", label: "Setup", icon: Settings },
   ];
 
@@ -106,6 +108,30 @@ export default function DJConsole() {
         {activeTab === "mic" && (
           <div className="max-w-md mx-auto pt-4">
             <Microphone audioCtxGetter={engine.getCtx} masterNode={null} />
+          </div>
+        )}
+        {activeTab === "ai" && (
+          <div className="max-w-lg mx-auto pt-4 overflow-y-auto pb-4">
+            <AIDJAssistant
+              deckA={{
+                fileName: engine.decks.A.fileName,
+                isPlaying: engine.decks.A.isPlaying,
+                bpm: undefined,
+                key: undefined,
+                duration: engine.decks.A.duration,
+                buffer: engine.decks.A.buffer,
+              }}
+              deckB={{
+                fileName: engine.decks.B.fileName,
+                isPlaying: engine.decks.B.isPlaying,
+                bpm: undefined,
+                key: undefined,
+                duration: engine.decks.B.duration,
+                buffer: engine.decks.B.buffer,
+              }}
+              queue={[]}
+              engine={engine}
+            />
           </div>
         )}
         {activeTab === "settings" && (
