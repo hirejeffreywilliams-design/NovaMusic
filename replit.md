@@ -1,11 +1,12 @@
-# DJ Hybrid - Professional 4-Deck Mixer + Party Mode
+# DJ Hybrid - AI DJ Platform + Professional Mixer
 
 ## Overview
 
-DJ Hybrid is a browser-based professional DJ mixing platform with two distinct experiences:
+DJ Hybrid is a browser-based DJ mixing platform with three distinct experiences:
 
-1. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer
-2. **Party Mode (Sister App)** — Simplified, mobile-first DJ experience designed for party guests to drop beats and trigger sound effects
+1. **AI DJ Mode (NEW - Beginner)** — Upload your music library, and the AI analyzes everything: BPM/key/genre detection, Fire Zone identification (the drop/hook/chorus), trending song detection, smart setlist planning, and automated mixing. Zero DJ knowledge required.
+2. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer
+3. **Party Mode (Sister App)** — Simplified, mobile-first DJ experience designed for party guests to drop beats and trigger sound effects
 
 The app features a vibrant neon party aesthetic with purple, blue, pink, and green accents, glow effects, glass-morphism panels, and smooth animations throughout.
 
@@ -18,7 +19,7 @@ Preferred communication style: Simple, everyday language.
 ### Frontend
 
 - **Framework**: React 18 with TypeScript
-- **Routing**: Wouter — 3 routes: Landing (`/`), DJ Console (`/console`), Party Mode (`/party`)
+- **Routing**: Wouter — 4 routes: Landing (`/`), AI DJ (`/ai-dj`), DJ Console (`/console`), Party Mode (`/party`)
 - **State Management**: React hooks and TanStack React Query
 - **UI Components**: shadcn/ui (new-york style) built on Radix UI primitives
 - **Styling**: Tailwind CSS with neon party theme (dark-first, purple/blue/pink/green accents)
@@ -27,7 +28,8 @@ Preferred communication style: Simple, everyday language.
 
 ### Pages
 
-- `client/src/pages/landing.tsx` — Animated landing page with particle effects, gradient text, and navigation to both experiences
+- `client/src/pages/landing.tsx` — Animated landing page with particle effects, gradient text, and navigation to all experiences; AI DJ Mode card is the featured/recommended option
+- `client/src/pages/ai-dj.tsx` — **NEW** Beginner AI DJ experience with 4 screens: Upload, Scanning, Setlist, Playing. Full AI-powered pipeline with file upload, metadata analysis, Fire Zone detection, trending detection, setlist planning, and automated mixing
 - `client/src/pages/dj-console.tsx` — Pro DJ console with tabbed views (Decks, FX Rack, Sound Pads, Visualizer), 2/4 deck toggle, fullscreen mode
 - `client/src/pages/party-mode.tsx` — Mobile-optimized party experience with 2 decks, crossfader, 12 synthesized party sound FX pads, quick actions
 
@@ -56,8 +58,17 @@ Preferred communication style: Simple, everyday language.
 
 - **Runtime**: Node.js with TypeScript (tsx for development)
 - **Framework**: Express.js
-- **API**: `POST /api/analyze` (placeholder), `POST /api/mix-suggestion` (harmonic compatibility via Camelot wheel)
-- **File Uploads**: Multer
+- **API Endpoints**:
+  - `POST /api/analyze` — Placeholder for legacy analysis
+  - `POST /api/mix-suggestion` — Harmonic compatibility via Camelot wheel
+  - `POST /api/ai-dj/analyze-tracks` — Multi-file upload endpoint; uses OpenAI GPT-4.1-mini to analyze track names for BPM/key/genre/mood/energy/trending status/fire zone; returns structured AnalyzedTrack array
+  - `POST /api/ai-dj/build-setlist` — Takes analyzed tracks + vibe (chill/party/hype), builds optimal order, calculates transitions, generates energy arc and genre journey, adds AI commentary via OpenAI
+  - `POST /api/ai-dj/dj-status` — Generates live AI DJ persona status messages based on current play state
+  - `POST /api/ai-dj/analyze-playlist` — Legacy endpoint for basic playlist analysis
+  - `POST /api/ai-dj/transition-advice` — Streaming SSE endpoint for real-time transition advice
+  - `POST /api/ai-dj/vibe-tips` — Streaming SSE endpoint for vibe-specific DJ tips
+  - `POST /api/ai-dj/auto-mix-plan` — Returns step-by-step auto-mix commands
+- **File Uploads**: Multer (temp storage, files deleted after processing)
 
 ### Database
 

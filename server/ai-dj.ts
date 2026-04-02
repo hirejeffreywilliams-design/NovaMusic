@@ -1,10 +1,17 @@
 import type { Express, Request, Response } from "express";
 import OpenAI from "openai";
+import multer from "multer";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import * as mm from "music-metadata";
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
   baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
 });
+
+const upload = multer({ dest: os.tmpdir(), limits: { fileSize: 100 * 1024 * 1024 } });
 
 export interface TrackInfo {
   name: string;
@@ -14,30 +21,70 @@ export interface TrackInfo {
   energy?: number;
 }
 
+export interface AnalyzedTrack {
+  id: string;
+  name: string;
+  bpm: number;
+  key: string;
+  duration: number;
+  energy: number;
+  genre: string;
+  mood: string;
+  fireZoneStart: number;
+  fireZoneEnd: number;
+  fireZoneLabel: string;
+  isTrending: boolean;
+  trendingReason?: string;
+  bestMomentReason: string;
+}
+
+export interface SetlistPlan {
+  tracks: AnalyzedTrack[];
+  transitions: TransitionPlan[];
+  totalDuration: number;
+  avgBpm: number;
+  genreJourney: string[];
+  energyArc: number[];
+  aiComment: string;
+  vibeMessage: string;
+}
+
+export interface TransitionPlan {
+  fromTrackId: string;
+  toTrackId: string;
+  fromTrack: string;
+  toTrack: string;
+  mixType: "long-blend" | "quick-blend" | "echo-out" | "cut";
+  blendBeats: number;
+  blendDuration: number;
+  fxOnOut: string[];
+  genreBridge: string;
+  score: number;
+  rateAdjust: number;
+  transitionEffect: string;
+}
+
 export interface PlaylistAnalysis {
   tracks: TrackInfo[];
   totalDuration: number;
   avgBpm: number;
 }
 
-// Proprietary DJ algorithm - scores transition quality between two tracks
 function scoreMixTransition(a: TrackInfo, b: TrackInfo): number {
   let score = 50;
 
-  // BPM compatibility (0-30 points)
   if (a.bpm && b.bpm) {
     const diff = Math.abs(a.bpm - b.bpm);
     const ratio = Math.min(a.bpm, b.bpm) / Math.max(a.bpm, b.bpm);
     if (diff <= 2) score += 30;
     else if (diff <= 5) score += 22;
     else if (diff <= 10) score += 14;
-    else if (ratio > 0.48 && ratio < 0.52) score += 18; // half-time compatible
+    else if (ratio > 0.48 && ratio < 0.52) score += 18;
     else if (ratio > 0.65) score += 8;
   } else {
-    score += 15; // neutral if unknown
+    score += 15;
   }
 
-  // Key compatibility (0-20 points) using Camelot wheel
   const camelotMap: Record<string, [number, string]> = {
     "C Major": [8, "B"], "A Minor": [8, "A"],
     "G Major": [9, "B"], "E Minor": [9, "A"],
@@ -74,14 +121,12 @@ function scoreMixTransition(a: TrackInfo, b: TrackInfo): number {
   return Math.min(100, Math.max(0, score));
 }
 
-// Build optimal playlist order using greedy nearest-neighbor with score
 function buildOptimalOrder(tracks: TrackInfo[]): number[] {
   if (tracks.length <= 1) return tracks.map((_, i) => i);
 
   const remaining = new Set<number>(tracks.map((_, i) => i));
   const order: number[] = [];
 
-  // Start with the track closest to 120 BPM (good opener energy)
   let best = 0;
   let bestDiff = Infinity;
   for (const i of remaining) {
@@ -92,7 +137,6 @@ function buildOptimalOrder(tracks: TrackInfo[]): number[] {
   order.push(best);
   remaining.delete(best);
 
-  // Greedily pick the best-scoring next track
   while (remaining.size > 0) {
     const current = tracks[order[order.length - 1]];
     let bestNext = -1;
@@ -108,7 +152,6 @@ function buildOptimalOrder(tracks: TrackInfo[]): number[] {
   return order;
 }
 
-// Determine mix type and params for a pair
 function getMixParams(a: TrackInfo, b: TrackInfo) {
   const score = scoreMixTransition(a, b);
   const bpmDiff = a.bpm && b.bpm ? Math.abs(a.bpm - b.bpm) : 999;
@@ -130,9 +173,372 @@ function getMixParams(a: TrackInfo, b: TrackInfo) {
   return { score, mixType, blendBeats, blendDuration, rateAdjust, fxOnOut };
 }
 
+function guessGenreFromName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.match(/hip.?hop|rap|trap|drill|lil |nba |drake|kendrick|cardi/)) return "Hip Hop";
+  if (lower.match(/r.?b|rnb|soul|usher|beyonce|rihanna|weeknd|sza/)) return "R&B";
+  if (lower.match(/pop|taylor|ariana|billie|dua|olivia|harry styles/)) return "Pop";
+  if (lower.match(/edm|electro|house|techno|trance|dubstep|dj snake|marshmello|tiesto/)) return "EDM";
+  if (lower.match(/rock|guitar|metal|alternative|indie|nirvana|arctic monkeys/)) return "Rock";
+  if (lower.match(/reggaeton|latin|bad bunny|j balvin|maluma|shakira|daddy yankee/)) return "Latin";
+  if (lower.match(/country|western|luke|morgan|blake|kenny/)) return "Country";
+  if (lower.match(/jazz|blues|swing|trumpet|saxophone/)) return "Jazz";
+  if (lower.match(/classic|beethoven|mozart|symphony|orchestra/)) return "Classical";
+  if (lower.match(/afro|amapiano|afrobeats|afrohouse|burna|wizkid/)) return "Afrobeats";
+  return "Pop";
+}
+
+function guessEnergyFromName(name: string, genre: string): number {
+  const lower = name.toLowerCase();
+  let energy = 0.6;
+  if (genre === "EDM" || genre === "Hip Hop") energy = 0.8;
+  if (genre === "Pop" || genre === "Latin") energy = 0.7;
+  if (genre === "R&B" || genre === "Jazz") energy = 0.5;
+  if (genre === "Classical") energy = 0.3;
+  if (lower.match(/drop|banger|fire|hype|go|lit|turn up|remix/)) energy = Math.min(1, energy + 0.15);
+  if (lower.match(/slow|chill|relax|sleep|calm|soft|sad|love song/)) energy = Math.max(0.1, energy - 0.2);
+  return Math.round(energy * 100) / 100;
+}
+
+function estimateFireZone(duration: number, genre: string, energy: number): { start: number; label: string } {
+  let fireZoneFraction = 0.3;
+  if (genre === "EDM") fireZoneFraction = 0.33;
+  if (genre === "Pop") fireZoneFraction = 0.25;
+  if (genre === "Hip Hop") fireZoneFraction = 0.28;
+  if (energy > 0.8) fireZoneFraction = Math.max(0.2, fireZoneFraction - 0.05);
+
+  const start = Math.round(duration * fireZoneFraction);
+  const label = energy >= 0.8 ? "The Drop 🔥" : energy >= 0.6 ? "The Hook ⚡" : "Best Part 🎵";
+  return { start, label };
+}
+
+interface TrackAIAnalysis {
+  genre: string;
+  mood: string;
+  isTrending: boolean;
+  trendingReason?: string;
+  bestMomentReason: string;
+  bpm: number;
+  key: string;
+  energy: number;
+  duration?: number;
+}
+
+async function checkTrendingWithSearch(songName: string): Promise<{ isTrending: boolean; evidence?: string }> {
+  try {
+    const query = encodeURIComponent(`${songName} billboard chart top 100 2024 2025`);
+    const resp = await fetch(`https://api.duckduckgo.com/?q=${query}&format=json&no_html=1&skip_disambig=1`, {
+      headers: { "Accept": "application/json" },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!resp.ok) return { isTrending: false };
+    const data = await resp.json() as { Abstract?: string; AbstractText?: string };
+    const combined = ((data.Abstract || "") + " " + (data.AbstractText || "")).toLowerCase();
+    const chartSignals = ["billboard", "hot 100", "chart", "#1", "number one", "grammy", "platinum", "gold", "certified", "streamed"];
+    const found = chartSignals.find(k => combined.includes(k));
+    if (found && combined.length > 40) {
+      const excerpt = (data.AbstractText || data.Abstract || "").slice(0, 100);
+      return { isTrending: true, evidence: excerpt || `Found chart signal: ${found}` };
+    }
+    return { isTrending: false };
+  } catch {
+    return { isTrending: false };
+  }
+}
+
+async function analyzeTracksWithAI(fileNames: string[]): Promise<Record<string, TrackAIAnalysis>> {
+  const trackList = fileNames.map((n, i) => `${i + 1}. "${n}"`).join("\n");
+
+  const prompt = `You are an expert music analyst and DJ. Analyze these tracks and return a JSON object.
+
+Tracks:
+${trackList}
+
+For each track, return:
+- genre: (Hip Hop / R&B / Pop / EDM / Rock / Latin / Country / Jazz / Afrobeats / Classical)
+- mood: (Hype / Energetic / Chill / Romantic / Melancholic / Happy)
+- bpm: estimated BPM (integer 60-180)
+- key: musical key (e.g. "C Major", "A Minor", "F# Minor")
+- energy: energy level 0.0-1.0
+- isTrending: boolean - ONLY true if you have HIGH CONFIDENCE the song has charted (Billboard, Spotify, Apple Music) or gone viral in 2023-2025. False for unknown/unrecognized songs.
+- trendingReason: concise evidence if isTrending (e.g. "Billboard Hot 100 Top 10, 2024"), omit or null otherwise
+- bestMomentReason: short description of the fire zone (e.g. "The iconic chorus drop at 0:45")
+
+Return ONLY a valid JSON object like:
+{
+  "Song Name": { "genre": "Pop", "mood": "Energetic", "bpm": 128, "key": "C Major", "energy": 0.8, "isTrending": true, "trendingReason": "Top 10 Billboard 2024", "bestMomentReason": "Big chorus hook" },
+  ...
+}
+
+Use the actual song/artist names to give accurate data. If a filename is not recognizable as a real song/artist (e.g. it looks like a personal recording or generic name), set isTrending to false and estimate other fields based on genre cues in the name. Only set isTrending=true when you can cite specific chart evidence from your training data.`;
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 2000,
+      response_format: { type: "json_object" },
+    });
+
+    const content = resp.choices[0]?.message?.content || "{}";
+    return JSON.parse(content);
+  } catch (e) {
+    console.error("AI track analysis error:", e);
+    return {};
+  }
+}
+
+async function generateSetlistPlan(tracks: AnalyzedTrack[]): Promise<{ aiComment: string; vibeMessage: string; genreJourney: string[] }> {
+  const trackSummary = tracks.map((t, i) =>
+    `${i + 1}. "${t.name}" - ${t.genre}, ${t.bpm} BPM, energy ${Math.round(t.energy * 100)}%${t.isTrending ? ", TRENDING" : ""}`
+  ).join("\n");
+
+  const prompt = `You are an AI DJ planning an epic set for a crowd. Here's the setlist you've planned:
+
+${trackSummary}
+
+Respond with a JSON object containing:
+- aiComment: 2-3 fun, excited sentences about the energy journey of this set. Use casual DJ language. Under 80 words.
+- vibeMessage: A single short hype message from the AI DJ persona (e.g. "Watch this drop!", "Genre switch incoming!", "This one's trending right now, let's GO!"). Under 20 words.
+- genreJourney: Array of genre names in order as the set flows (deduplicate consecutive same genres)
+
+Example: {"aiComment": "...", "vibeMessage": "...", "genreJourney": ["Hip Hop", "R&B", "Pop"]}`;
+
+  try {
+    const resp = await openai.chat.completions.create({
+      model: "gpt-4.1-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 400,
+      response_format: { type: "json_object" },
+    });
+    const content = resp.choices[0]?.message?.content || "{}";
+    const data = JSON.parse(content);
+    return {
+      aiComment: data.aiComment || "This set is going to be FIRE! Let's get the crowd moving!",
+      vibeMessage: data.vibeMessage || "Watch this drop! 🔥",
+      genreJourney: data.genreJourney || tracks.map(t => t.genre),
+    };
+  } catch (e) {
+    console.error("Setlist plan AI error:", e);
+    return {
+      aiComment: "This set is going to be FIRE! Let's get the crowd moving!",
+      vibeMessage: "Watch this drop! 🔥",
+      genreJourney: tracks.map(t => t.genre),
+    };
+  }
+}
+
+interface AudioFileMeta {
+  duration: number;
+  bpm: number | null;
+  key: string | null;
+}
+
+async function extractAudioFileMeta(filePath: string): Promise<AudioFileMeta> {
+  try {
+    const meta = await mm.parseFile(filePath, { duration: true, skipCovers: true });
+    const duration = meta.format.duration ?? 0;
+    const bpm = meta.common.bpm ?? null;
+    const key = meta.common.key ?? null;
+    return { duration: Math.round(duration), bpm, key };
+  } catch {
+    return { duration: 0, bpm: null, key: null };
+  }
+}
+
 export function registerAIDJRoutes(app: Express) {
 
-  // Analyze a playlist and get AI suggestions
+  app.post("/api/ai-dj/analyze-tracks", upload.array("files", 50), async (req: Request, res: Response) => {
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      return res.status(400).json({ error: "No files uploaded" });
+    }
+
+    try {
+      const fileNames = files.map(f => path.parse(f.originalname).name);
+
+      interface ClientAudioMeta {
+        duration: number;
+        energy: number;
+        fireZoneStart: number;
+      }
+
+      const clientAudioMetaRaw: string | undefined = (req.body as Record<string, string>).audioMeta;
+      const clientAudioMeta: Array<ClientAudioMeta | null> = clientAudioMetaRaw
+        ? (JSON.parse(clientAudioMetaRaw) as Array<ClientAudioMeta | null>)
+        : files.map(() => null);
+
+      const [aiData, fileMetas] = await Promise.all([
+        analyzeTracksWithAI(fileNames),
+        Promise.all(files.map(f => extractAudioFileMeta(f.path))),
+      ]);
+
+      const trendingVerifications = await Promise.all(
+        files.map(async (f) => {
+          const name = path.parse(f.originalname).name;
+          return checkTrendingWithSearch(name);
+        })
+      );
+
+      const analyzedTracks: AnalyzedTrack[] = files.map((f, idx) => {
+        const name = path.parse(f.originalname).name;
+        const ai = aiData[name] || {};
+        const fileMeta = fileMetas[idx];
+        const clientMeta = clientAudioMeta[idx] ?? null;
+        const trendingVerified = trendingVerifications[idx];
+
+        const genre = ai.genre || guessGenreFromName(name);
+        const energy = clientMeta?.energy ?? ai.energy ?? guessEnergyFromName(name, genre);
+        const duration = (clientMeta?.duration && clientMeta.duration > 0)
+          ? clientMeta.duration
+          : (fileMeta.duration > 0 ? fileMeta.duration : 210);
+        const bpm = fileMeta.bpm ?? ai.bpm ?? (genre === "EDM" ? 128 : genre === "Hip Hop" ? 95 : genre === "Pop" ? 115 : 110);
+        const key = fileMeta.key ?? ai.key ?? "C Major";
+
+        const rawClientStart = clientMeta?.fireZoneStart;
+        const clampedClientStart = (rawClientStart && rawClientStart > 0 && rawClientStart < duration * 0.95)
+          ? rawClientStart
+          : null;
+        const fireZoneStart = clampedClientStart ?? estimateFireZone(duration, genre, energy).start;
+        const isTrending = trendingVerified.isTrending || (ai.isTrending && !!trendingVerified.evidence);
+        const segmentDuration = isTrending ? Math.min(90, duration - fireZoneStart) : Math.min(60, duration - fireZoneStart);
+        const fireZoneEnd = Math.min(duration, fireZoneStart + Math.max(30, segmentDuration));
+        const fireZoneLabel = energy >= 0.8 ? "The Drop 🔥" : energy >= 0.6 ? "The Hook ⚡" : "Best Part 🎵";
+
+        const trendingReason = trendingVerified.evidence ?? (ai.isTrending ? ai.trendingReason : undefined);
+
+        return {
+          id: `track-${idx}-${Date.now()}`,
+          name,
+          bpm,
+          key,
+          duration,
+          energy,
+          genre,
+          mood: ai.mood || "Energetic",
+          fireZoneStart,
+          fireZoneEnd,
+          fireZoneLabel,
+          isTrending: isTrending ?? false,
+          trendingReason,
+          bestMomentReason: ai.bestMomentReason || `The best part of "${name}"`,
+        };
+      });
+
+      files.forEach(f => { try { fs.unlinkSync(f.path); } catch (_) {} });
+
+      return res.json({ tracks: analyzedTracks });
+    } catch (err: unknown) {
+      files?.forEach(f => { try { fs.unlinkSync(f.path); } catch (_) {} });
+      console.error("Track analysis error:", err);
+      const message = err instanceof Error ? err.message : "Analysis failed";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  app.post("/api/ai-dj/build-setlist", async (req: Request, res: Response) => {
+    try {
+      const { tracks, vibe }: { tracks: AnalyzedTrack[]; vibe?: string } = req.body;
+      if (!tracks || tracks.length === 0) {
+        return res.status(400).json({ error: "No tracks provided" });
+      }
+
+      let sortedTracks = [...tracks];
+
+      if (vibe === "chill") {
+        sortedTracks.sort((a, b) => a.energy - b.energy);
+      } else if (vibe === "hype") {
+        sortedTracks.sort((a, b) => b.energy - a.energy);
+      } else {
+        const optimalOrder = buildOptimalOrder(sortedTracks);
+        sortedTracks = optimalOrder.map(i => tracks[i]);
+      }
+
+      const transitions: TransitionPlan[] = [];
+      for (let i = 0; i < sortedTracks.length - 1; i++) {
+        const a = sortedTracks[i];
+        const b = sortedTracks[i + 1];
+        const params = getMixParams(a, b);
+
+        const transitionEffects: Record<string, string> = {
+          "long-blend": "Smooth crossfade",
+          "quick-blend": "Filter sweep + crossfade",
+          "echo-out": "Echo fade + reverb tail",
+          "cut": "Hard cut with filter",
+        };
+
+        const sameGenre = a.genre === b.genre;
+        const genreBridge = sameGenre
+          ? `Staying in ${a.genre}`
+          : `${a.genre} → ${b.genre}`;
+
+        transitions.push({
+          fromTrackId: a.id,
+          toTrackId: b.id,
+          fromTrack: a.name,
+          toTrack: b.name,
+          ...params,
+          genreBridge,
+          transitionEffect: transitionEffects[params.mixType] || "Crossfade",
+        });
+      }
+
+      const avgBpm = Math.round(sortedTracks.reduce((s, t) => s + t.bpm, 0) / sortedTracks.length);
+      const totalDuration = sortedTracks.reduce((s, t) => s + t.duration, 0);
+      const energyArc = sortedTracks.map(t => Math.round(t.energy * 100));
+
+      const genreJourneyRaw = sortedTracks.map(t => t.genre);
+      const genreJourney: string[] = [genreJourneyRaw[0]];
+      for (let i = 1; i < genreJourneyRaw.length; i++) {
+        if (genreJourneyRaw[i] !== genreJourney[genreJourney.length - 1]) {
+          genreJourney.push(genreJourneyRaw[i]);
+        }
+      }
+
+      const setlistMeta = await generateSetlistPlan(sortedTracks);
+
+      return res.json({
+        tracks: sortedTracks,
+        transitions,
+        avgBpm,
+        totalDuration,
+        energyArc,
+        genreJourney: setlistMeta.genreJourney.length > 0 ? setlistMeta.genreJourney : genreJourney,
+        aiComment: setlistMeta.aiComment,
+        vibeMessage: setlistMeta.vibeMessage,
+      });
+    } catch (err: unknown) {
+      console.error("Build setlist error:", err);
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Setlist build failed" });
+    }
+  });
+
+  app.post("/api/ai-dj/dj-status", async (req: Request, res: Response) => {
+    try {
+      const { currentTrack, nextTrack, phase, vibe } = req.body;
+
+      const prompts: Record<string, string> = {
+        playing: `You are an AI DJ. Song "${currentTrack?.name}" is playing in the ${currentTrack?.genre} genre. Give ONE short, hype status message under 10 words. Examples: "Feeling this ${currentTrack?.genre} energy!", "Let's ride this vibe!", "The crowd is LOVING this!"`,
+        transitioning: `You are an AI DJ transitioning from "${currentTrack?.name}" to "${nextTrack?.name}". Give ONE short status message under 12 words about the transition. Be exciting!`,
+        fireZone: `You are an AI DJ. The fire zone of "${currentTrack?.name}" is coming up. Give ONE short hype warning under 10 words!`,
+        trending: `You are an AI DJ. "${currentTrack?.name}" is trending right now. Give ONE short message about it being trending, under 12 words. Be hype!`,
+      };
+
+      const promptText = prompts[phase] || prompts.playing;
+
+      const resp = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [{ role: "user", content: promptText }],
+        max_tokens: 50,
+      });
+
+      const message = resp.choices[0]?.message?.content?.trim() || "Feeling this vibe! 🔥";
+      return res.json({ message });
+    } catch (_: unknown) {
+      return res.json({ message: "Let's GO! 🔥" });
+    }
+  });
+
   app.post("/api/ai-dj/analyze-playlist", async (req: Request, res: Response) => {
     try {
       const { tracks }: { tracks: TrackInfo[] } = req.body;
@@ -140,11 +546,9 @@ export function registerAIDJRoutes(app: Express) {
         return res.status(400).json({ error: "No tracks provided" });
       }
 
-      // Build optimal order
       const optimalOrder = buildOptimalOrder(tracks);
       const orderedTracks = optimalOrder.map(i => tracks[i]);
 
-      // Build transition plan
       const transitions = [];
       for (let i = 0; i < orderedTracks.length - 1; i++) {
         const params = getMixParams(orderedTracks[i], orderedTracks[i + 1]);
@@ -158,7 +562,6 @@ export function registerAIDJRoutes(app: Express) {
       const avgBpm = tracks.filter(t => t.bpm).reduce((s, t) => s + (t.bpm || 0), 0) / (tracks.filter(t => t.bpm).length || 1);
       const totalDuration = tracks.reduce((s, t) => s + (t.duration || 0), 0);
 
-      // AI description
       const trackSummary = orderedTracks.map((t, i) => `${i + 1}. "${t.name}" (${t.bpm ? Math.round(t.bpm) + "BPM" : "?"}, ${t.key || "?"}, ${t.duration ? Math.round(t.duration) + "s" : "?"})`).join("\n");
       const prompt = `You are a professional DJ assistant helping party guests. Here is a playlist you've ordered for best flow:\n\n${trackSummary}\n\nIn 2-3 friendly, fun sentences, describe the energy journey of this set and give one quick tip for hyping the crowd. Use simple, excited language — not technical DJ terms. Under 80 words total.`;
 
@@ -170,13 +573,12 @@ export function registerAIDJRoutes(app: Express) {
       const aiComment = aiResp.choices[0]?.message?.content?.trim() || "";
 
       return res.json({ optimalOrder, orderedTracks, transitions, avgBpm: Math.round(avgBpm), totalDuration, aiComment });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("AI DJ analyze error:", err);
-      return res.status(500).json({ error: err.message || "Analysis failed" });
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Analysis failed" });
     }
   });
 
-  // Get real-time transition advice for two current tracks (streaming)
   app.post("/api/ai-dj/transition-advice", async (req: Request, res: Response) => {
     try {
       const { trackA, trackB, currentPosition, deckABpm, deckBBpm } = req.body;
@@ -190,7 +592,6 @@ export function registerAIDJRoutes(app: Express) {
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
 
-      // Send algorithmic advice immediately (no wait)
       res.write(`data: ${JSON.stringify({ type: "params", data: params })}\n\n`);
 
       const prompt = `You are a friendly DJ assistant speaking to a beginner at a party. The current song "${trackA || "A"}" is playing${deckABpm ? ` at ${Math.round(deckABpm)} BPM` : ""}. The next song "${trackB || "B"}"${deckBBpm ? ` is at ${Math.round(deckBBpm)} BPM` : ""}.
@@ -217,15 +618,14 @@ In 1-2 very short, excited sentences tell them exactly what to do right now to m
 
       res.write(`data: ${JSON.stringify({ type: "done", full })}\n\n`);
       res.end();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Transition advice error:", err);
-      if (!res.headersSent) return res.status(500).json({ error: err.message });
+      if (!res.headersSent) return res.status(500).json({ error: err instanceof Error ? err.message : "Error" });
       res.write(`data: ${JSON.stringify({ type: "error" })}\n\n`);
       res.end();
     }
   });
 
-  // Get AI song recommendations based on mood/vibe
   app.post("/api/ai-dj/vibe-tips", async (req: Request, res: Response) => {
     try {
       const { vibe, playingTracks, eventType } = req.body;
@@ -251,15 +651,14 @@ Give 3 short, specific tips in a numbered list for what to do RIGHT NOW — thin
 
       res.write(`data: ${JSON.stringify({ type: "done" })}\n\n`);
       res.end();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Vibe tips error:", err);
-      if (!res.headersSent) return res.status(500).json({ error: err.message });
+      if (!res.headersSent) return res.status(500).json({ error: err instanceof Error ? err.message : "Error" });
       res.write(`data: ${JSON.stringify({ type: "error" })}\n\n`);
       res.end();
     }
   });
 
-  // Auto-execute a mix transition (returns step-by-step commands)
   app.post("/api/ai-dj/auto-mix-plan", (req: Request, res: Response) => {
     try {
       const { trackA, trackB } = req.body as { trackA: TrackInfo; trackB: TrackInfo };
@@ -268,15 +667,12 @@ Give 3 short, specific tips in a numbered list for what to do RIGHT NOW — thin
       const steps: { time: number; action: string; param?: any }[] = [];
       const beat = trackA.bpm ? 60000 / trackA.bpm : 500;
 
-      // Step 1: Sync BPM if needed
       if (params.rateAdjust !== 1) {
         steps.push({ time: 0, action: "setRate", param: { deck: "B", rate: params.rateAdjust } });
       }
 
-      // Step 2: Start deck B
       steps.push({ time: 0, action: "playDeck", param: { deck: "B" } });
 
-      // Step 3: Apply outgoing FX
       if (params.fxOnOut.includes("reverb")) {
         steps.push({ time: beat * 2, action: "setReverb", param: { deck: "A", amount: 0.5 } });
       }
@@ -284,23 +680,21 @@ Give 3 short, specific tips in a numbered list for what to do RIGHT NOW — thin
         steps.push({ time: beat * 2, action: "setDelay", param: { deck: "A", amount: 0.4 } });
       }
 
-      // Step 4: Crossfade steps (smooth S-curve)
       const fadeSteps = params.blendBeats * 2;
       for (let i = 0; i <= fadeSteps; i++) {
         const t = i / fadeSteps;
-        const curve = t * t * (3 - 2 * t); // smoothstep
+        const curve = t * t * (3 - 2 * t);
         steps.push({ time: beat * (params.blendBeats / 2) + (i * (beat * params.blendBeats) / fadeSteps), action: "crossfade", param: { value: curve } });
       }
 
-      // Step 5: Mute A + reset
       steps.push({ time: beat * params.blendBeats + beat * (params.blendBeats / 2), action: "pauseDeck", param: { deck: "A" } });
       steps.push({ time: beat * params.blendBeats + beat * (params.blendBeats / 2) + 200, action: "setReverb", param: { deck: "A", amount: 0 } });
       steps.push({ time: beat * params.blendBeats + beat * (params.blendBeats / 2) + 200, action: "setDelay", param: { deck: "A", amount: 0 } });
       steps.push({ time: beat * params.blendBeats + beat * (params.blendBeats / 2) + 200, action: "setRate", param: { deck: "B", rate: 1 } });
 
       return res.json({ params, steps, totalMs: beat * params.blendBeats + beat * (params.blendBeats / 2) + 500 });
-    } catch (err: any) {
-      return res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Error" });
     }
   });
 }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
-import { Music, Headphones, PartyPopper, Disc3, Mic2, Radio, Zap, Volume2, Sparkles, ChevronDown } from "lucide-react";
+import { Music, Headphones, PartyPopper, Disc3, Mic2, Radio, Zap, Volume2, Sparkles, ChevronDown, Bot } from "lucide-react";
 
 function ParticleField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -196,54 +196,80 @@ export default function Landing() {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl mx-auto mb-10">
+            <div className="flex flex-col gap-4 max-w-2xl mx-auto mb-10 w-full">
               <button
-                onClick={() => navigate("/party")}
-                className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
-                style={{ background: "linear-gradient(135deg, #ff2d78, #ff9500)" }}
-                data-testid="button-launch-party"
+                onClick={() => navigate("/ai-dj")}
+                className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.01]"
+                style={{ background: "linear-gradient(135deg, #bf5af2, #0af, #ff2d78)" }}
+                data-testid="button-launch-ai-dj"
               >
-                <div className="relative rounded-2xl bg-[#0a0519]/90 p-8 flex flex-col items-center gap-4 group-hover:bg-[#0a0519]/70 transition-colors">
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,45,120,0.1), transparent 70%)" }} />
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center neon-glow-pink relative z-10" style={{ background: "linear-gradient(135deg, #ff2d78, #ff9500)" }}>
-                    <PartyPopper className="w-8 h-8 text-white" />
+                <div className="relative rounded-2xl bg-[#0a0519]/85 p-6 flex items-center gap-5 group-hover:bg-[#0a0519]/70 transition-colors">
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(191,90,242,0.08), transparent 70%)" }} />
+                  <div className="w-16 h-16 rounded-2xl flex items-center justify-center shrink-0 relative z-10" style={{ background: "linear-gradient(135deg, #bf5af2, #0af)", boxShadow: "0 0 25px rgba(191,90,242,0.5)" }}>
+                    <Sparkles className="w-8 h-8 text-white" />
                   </div>
-                  <div className="relative z-10">
-                    <div className="text-[10px] uppercase tracking-widest text-[#ffd60a] mb-1 font-semibold">Recommended</div>
-                    <h3 className="text-xl font-bold text-white mb-1">🎉 Party Mode</h3>
-                    <p className="text-sm text-white/50">Simple & fun for everyone</p>
+                  <div className="flex-1 text-left relative z-10">
+                    <div className="text-[10px] uppercase tracking-widest text-[#ffd60a] mb-1 font-bold flex items-center gap-1">
+                      <Zap className="w-2.5 h-2.5" />NEW — Recommended
+                    </div>
+                    <h3 className="text-xl font-black text-white mb-1">🤖 AI DJ Mode</h3>
+                    <p className="text-sm text-white/50">Upload your library — AI does everything for you</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#bf5af2]/20 text-[#bf5af2] border border-[#bf5af2]/30">Auto Mix</span>
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#ffd60a]/20 text-[#ffd60a] border border-[#ffd60a]/30">Trending Detection</span>
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#0af]/20 text-[#0af] border border-[#0af]/30">Fire Zone</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-2 relative z-10 justify-center">
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff2d78]/20 text-[#ff2d78] border border-[#ff2d78]/30">Easy Mix</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff9500]/20 text-[#ff9500] border border-[#ff9500]/30">Sound FX</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#30d158]/20 text-[#30d158] border border-[#30d158]/30">Mic Built-in</span>
-                  </div>
+                  <ChevronDown className="w-5 h-5 text-white/30 -rotate-90 relative z-10 shrink-0" />
                 </div>
               </button>
 
-              <button
-                onClick={() => navigate("/console")}
-                className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
-                style={{ background: "linear-gradient(135deg, #bf5af2, #0af)" }}
-                data-testid="button-launch-console"
-              >
-                <div className="relative rounded-2xl bg-[#0a0519]/90 p-8 flex flex-col items-center gap-4 group-hover:bg-[#0a0519]/70 transition-colors">
-                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(191,90,242,0.1), transparent 70%)" }} />
-                  <div className="w-16 h-16 rounded-full flex items-center justify-center neon-glow-purple relative z-10" style={{ background: "linear-gradient(135deg, #bf5af2, #8b5cf6)" }}>
-                    <Headphones className="w-8 h-8 text-white" />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  onClick={() => navigate("/party")}
+                  className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
+                  style={{ background: "linear-gradient(135deg, #ff2d78, #ff9500)" }}
+                  data-testid="button-launch-party"
+                >
+                  <div className="relative rounded-2xl bg-[#0a0519]/90 p-6 flex flex-col items-center gap-3 group-hover:bg-[#0a0519]/70 transition-colors">
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(255,45,120,0.1), transparent 70%)" }} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center neon-glow-pink relative z-10" style={{ background: "linear-gradient(135deg, #ff2d78, #ff9500)" }}>
+                      <PartyPopper className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="relative z-10 text-center">
+                      <h3 className="text-base font-bold text-white mb-1">🎉 Party Mode</h3>
+                      <p className="text-xs text-white/50">Simple & fun for everyone</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1 relative z-10 justify-center">
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#ff2d78]/20 text-[#ff2d78] border border-[#ff2d78]/30">Easy Mix</span>
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#ff9500]/20 text-[#ff9500] border border-[#ff9500]/30">Sound FX</span>
+                    </div>
                   </div>
-                  <div className="relative z-10">
-                    <div className="text-[10px] uppercase tracking-widest text-[#bf5af2]/60 mb-1 font-semibold">Advanced</div>
-                    <h3 className="text-xl font-bold text-white mb-1">🎧 DJ Console</h3>
-                    <p className="text-sm text-white/50">Full pro mixing experience</p>
+                </button>
+
+                <button
+                  onClick={() => navigate("/console")}
+                  className="group relative overflow-hidden rounded-2xl p-[2px] transition-all duration-300 hover:scale-[1.02]"
+                  style={{ background: "linear-gradient(135deg, #bf5af2, #0af)" }}
+                  data-testid="button-launch-console"
+                >
+                  <div className="relative rounded-2xl bg-[#0a0519]/90 p-6 flex flex-col items-center gap-3 group-hover:bg-[#0a0519]/70 transition-colors">
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500" style={{ background: "radial-gradient(circle at 50% 50%, rgba(191,90,242,0.1), transparent 70%)" }} />
+                    <div className="w-12 h-12 rounded-full flex items-center justify-center neon-glow-purple relative z-10" style={{ background: "linear-gradient(135deg, #bf5af2, #8b5cf6)" }}>
+                      <Headphones className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="relative z-10 text-center">
+                      <div className="text-[9px] uppercase tracking-widest text-[#bf5af2]/60 mb-0.5 font-semibold">Advanced</div>
+                      <h3 className="text-base font-bold text-white mb-1">🎧 DJ Console</h3>
+                      <p className="text-xs text-white/50">Full pro mixing experience</p>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 mt-1 relative z-10 justify-center">
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#bf5af2]/20 text-[#bf5af2] border border-[#bf5af2]/30">4 Decks</span>
+                      <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#0af]/20 text-[#0af] border border-[#0af]/30">FX Rack</span>
+                    </div>
                   </div>
-                  <div className="flex flex-wrap gap-2 mt-2 relative z-10 justify-center">
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#bf5af2]/20 text-[#bf5af2] border border-[#bf5af2]/30">4 Decks</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#0af]/20 text-[#0af] border border-[#0af]/30">FX Rack</span>
-                    <span className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-full bg-[#ff2d78]/20 text-[#ff2d78] border border-[#ff2d78]/30">Visualizer</span>
-                  </div>
-                </div>
-              </button>
+                </button>
+              </div>
             </div>
 
             <button
