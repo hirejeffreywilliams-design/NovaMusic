@@ -175,16 +175,22 @@ function getMixParams(a: TrackInfo, b: TrackInfo) {
 
 function guessGenreFromName(name: string): string {
   const lower = name.toLowerCase();
-  if (lower.match(/hip.?hop|rap|trap|drill|lil |nba |drake|kendrick|cardi/)) return "Hip Hop";
-  if (lower.match(/r.?b|rnb|soul|usher|beyonce|rihanna|weeknd|sza/)) return "R&B";
-  if (lower.match(/pop|taylor|ariana|billie|dua|olivia|harry styles/)) return "Pop";
-  if (lower.match(/edm|electro|house|techno|trance|dubstep|dj snake|marshmello|tiesto/)) return "EDM";
-  if (lower.match(/rock|guitar|metal|alternative|indie|nirvana|arctic monkeys/)) return "Rock";
-  if (lower.match(/reggaeton|latin|bad bunny|j balvin|maluma|shakira|daddy yankee/)) return "Latin";
-  if (lower.match(/country|western|luke|morgan|blake|kenny/)) return "Country";
-  if (lower.match(/jazz|blues|swing|trumpet|saxophone/)) return "Jazz";
+  if (lower.match(/amapiano|log drum|kabza|dj maphorisa|focalistic|sun-el/)) return "Amapiano";
+  if (lower.match(/afrobeats|afrohouse|afropop|burna|wizkid|davido|asake|rema|tems|ckay/)) return "Afrobeats";
+  if (lower.match(/phonk|drift|memphis|ghostemane|kordhell|nightcore|sped.?up/)) return "Phonk";
+  if (lower.match(/drill|uk drill|pop smoke|central cee|digga d|fivio foreign|polo g/)) return "Drill";
+  if (lower.match(/hip.?hop|rap|trap|lil|young|uzi|21 savage|gunna|future|metro|playboi/)) return "Hip Hop";
+  if (lower.match(/r.?b|soul|rnb|brent|sza|summer walker|daniel caesar|frank ocean|the weeknd/)) return "R&B";
+  if (lower.match(/pop|taylor|ariana|billie|dua|olivia|harry styles|sabrina carpenter|chappell/)) return "Pop";
+  if (lower.match(/edm|house|techno|trance|dubstep|dnb|drum.?and.?bass|fisher|fred again|skrillex|calvin harris/)) return "EDM";
+  if (lower.match(/reggaeton|latin|bad bunny|j balvin|peso pluma|karol.?g|maluma|shakira|feid|ozuna/)) return "Latin";
+  if (lower.match(/jersey|club|juke|footwork|tekno club/)) return "Jersey Club";
+  if (lower.match(/rock|guitar|metal|alternative|indie|nirvana|arctic monkeys|the 1975/)) return "Rock";
+  if (lower.match(/country|western|luke|morgan|blake|kenny|zach bryan|tyler childers/)) return "Country";
+  if (lower.match(/jazz|blues|swing|trumpet|saxophone|coltrane/)) return "Jazz";
   if (lower.match(/classic|beethoven|mozart|symphony|orchestra/)) return "Classical";
-  if (lower.match(/afro|amapiano|afrobeats|afrohouse|burna|wizkid/)) return "Afrobeats";
+  if (lower.match(/soca|dancehall|caribbean|bashment|kes|machel/)) return "Soca/Dancehall";
+  if (lower.match(/kpop|k-pop|bts|blackpink|stray kids|aespa|newjeans|nct/)) return "K-Pop";
   return "Pop";
 }
 
@@ -249,28 +255,40 @@ async function checkTrendingWithSearch(songName: string): Promise<{ isTrending: 
 async function analyzeTracksWithAI(fileNames: string[]): Promise<Record<string, TrackAIAnalysis>> {
   const trackList = fileNames.map((n, i) => `${i + 1}. "${n}"`).join("\n");
 
-  const prompt = `You are an expert music analyst and DJ. Analyze these tracks and return a JSON object.
+  const prompt = `You are DJ Jeff — an elite AI DJ with encyclopedic knowledge of global music through 2025. You know every chart, every genre scene, every trend from Lagos to London to Seoul to São Paulo.
+
+Analyze these tracks and return a JSON object:
 
 Tracks:
 ${trackList}
 
 For each track, return:
-- genre: (Hip Hop / R&B / Pop / EDM / Rock / Latin / Country / Jazz / Afrobeats / Classical)
-- mood: (Hype / Energetic / Chill / Romantic / Melancholic / Happy)
-- bpm: estimated BPM (integer 60-180)
+- genre: Choose the MOST accurate genre from: Hip Hop, R&B, Pop, EDM, Afrobeats, Amapiano, Latin, Drill, Phonk, Jersey Club, K-Pop, Soca/Dancehall, Rock, Country, Jazz, Classical
+- mood: (Hype / Energetic / Chill / Romantic / Melancholic / Happy / Dark / Euphoric)
+- bpm: estimated BPM (integer 60-200, be specific to the genre — Amapiano ~112-114, Afrobeats ~102-115, Phonk ~130-160, Drill ~138-145, UK Garage ~130-136)
 - key: musical key (e.g. "C Major", "A Minor", "F# Minor")
 - energy: energy level 0.0-1.0
-- isTrending: boolean - ONLY true if you have HIGH CONFIDENCE the song has charted (Billboard, Spotify, Apple Music) or gone viral in 2023-2025. False for unknown/unrecognized songs.
-- trendingReason: concise evidence if isTrending (e.g. "Billboard Hot 100 Top 10, 2024"), omit or null otherwise
-- bestMomentReason: short description of the fire zone (e.g. "The iconic chorus drop at 0:45")
+- isTrending: boolean — ONLY true if you have HIGH CONFIDENCE the song/artist has charted on Billboard, Spotify Global, Apple Music, or gone massively viral globally in 2022-2025. Be generous for well-known artists. False for unknown/personal recordings.
+- trendingReason: concise evidence if isTrending (e.g. "Spotify Global Top 10, 2024" or "Billboard Hot 100 #1 2024"), omit or null otherwise
+- bestMomentReason: short exciting description of the best part to DJ (e.g. "The iconic log drum drop at 0:52", "The Amapiano piano riff at 1:20", "That massive chorus drop")
 
-Return ONLY a valid JSON object like:
+Current 2024-2025 trending artists by genre you should know:
+- Hip Hop/Rap: Kendrick Lamar, Drake, Travis Scott, Future, Gunna, Lil Baby, Playboi Carti, Sexyy Red, GloRilla
+- R&B: SZA, Summer Walker, Usher, Brent Faiyaz, Chris Brown, Cardi B
+- Pop: Taylor Swift, Sabrina Carpenter, Chappell Roan, Dua Lipa, Billie Eilish, Olivia Rodrigo, Ariana Grande
+- EDM: Fred Again, Skrillex, Fisher, Chris Lake, Calvin Harris, David Guetta
+- Afrobeats: Burna Boy, Wizkid, Asake, Rema, Tems, CKay, Davido
+- Amapiano: Kabza De Small, DJ Maphorisa, Focalistic, Sun-El Musician, Vigro Deep
+- Latin: Bad Bunny, Peso Pluma, Karol G, Feid, Rosalía, J Balvin, Ozuna
+- Phonk: Ghostemane, Kordhell, MXDVS, 9lokknine, Soudiere
+- Drill: Central Cee, Pop Smoke, Fivio Foreign, Polo G, Digga D
+- K-Pop: BTS, BLACKPINK, Stray Kids, aespa, NewJeans, NCT
+
+Return ONLY a valid JSON object:
 {
-  "Song Name": { "genre": "Pop", "mood": "Energetic", "bpm": 128, "key": "C Major", "energy": 0.8, "isTrending": true, "trendingReason": "Top 10 Billboard 2024", "bestMomentReason": "Big chorus hook" },
+  "Song Name": { "genre": "Amapiano", "mood": "Energetic", "bpm": 112, "key": "C Major", "energy": 0.8, "isTrending": true, "trendingReason": "Spotify Africa Top 10, 2024", "bestMomentReason": "The log drum bassline hits at 0:45" },
   ...
-}
-
-Use the actual song/artist names to give accurate data. If a filename is not recognizable as a real song/artist (e.g. it looks like a personal recording or generic name), set isTrending to false and estimate other fields based on genre cues in the name. Only set isTrending=true when you can cite specific chart evidence from your training data.`;
+}`;
 
   try {
     const resp = await openai.chat.completions.create({
@@ -293,16 +311,16 @@ async function generateSetlistPlan(tracks: AnalyzedTrack[]): Promise<{ aiComment
     `${i + 1}. "${t.name}" - ${t.genre}, ${t.bpm} BPM, energy ${Math.round(t.energy * 100)}%${t.isTrending ? ", TRENDING" : ""}`
   ).join("\n");
 
-  const prompt = `You are an AI DJ planning an epic set for a crowd. Here's the setlist you've planned:
+  const prompt = `You are DJ Jeff — a world-class AI DJ who knows global music trends from Lagos to London to Seoul. You are charismatic, confident, and genuinely hyped about music. Here is your planned setlist:
 
 ${trackSummary}
 
 Respond with a JSON object containing:
-- aiComment: 2-3 fun, excited sentences about the energy journey of this set. Use casual DJ language. Under 80 words.
-- vibeMessage: A single short hype message from the AI DJ persona (e.g. "Watch this drop!", "Genre switch incoming!", "This one's trending right now, let's GO!"). Under 20 words.
-- genreJourney: Array of genre names in order as the set flows (deduplicate consecutive same genres)
+- aiComment: 2-3 punchy, excited sentences about the energy journey of this set. Reference genres and trends (Amapiano, Afrobeats, Phonk, etc.) where relevant. Sound like a real DJ hyping the crowd, not a robot. Under 80 words.
+- vibeMessage: A short DJ Jeff hype line (e.g. "Amapiano flow loading — DJ Jeff in the building!", "Genre switch incoming — keep your eyes on the wheels!"). Under 20 words.
+- genreJourney: Array of genre names in order as the set flows (deduplicate consecutive same genres, include global genres like Amapiano, Afrobeats, Phonk)
 
-Example: {"aiComment": "...", "vibeMessage": "...", "genreJourney": ["Hip Hop", "R&B", "Pop"]}`;
+Example: {"aiComment": "DJ Jeff opening with that Amapiano heat, then we ride the energy into global Hip Hop territory — the crowd won't know what hit them! This setlist flows like pure fire from start to finish.", "vibeMessage": "DJ Jeff loading the global sound system!", "genreJourney": ["Amapiano", "Hip Hop", "R&B"]}`;
 
   try {
     const resp = await openai.chat.completions.create({
@@ -518,10 +536,10 @@ export function registerAIDJRoutes(app: Express) {
       const { currentTrack, nextTrack, phase, vibe } = req.body;
 
       const prompts: Record<string, string> = {
-        playing: `You are an AI DJ. Song "${currentTrack?.name}" is playing in the ${currentTrack?.genre} genre. Give ONE short, hype status message under 10 words. Examples: "Feeling this ${currentTrack?.genre} energy!", "Let's ride this vibe!", "The crowd is LOVING this!"`,
-        transitioning: `You are an AI DJ transitioning from "${currentTrack?.name}" to "${nextTrack?.name}". Give ONE short status message under 12 words about the transition. Be exciting!`,
-        fireZone: `You are an AI DJ. The fire zone of "${currentTrack?.name}" is coming up. Give ONE short hype warning under 10 words!`,
-        trending: `You are an AI DJ. "${currentTrack?.name}" is trending right now. Give ONE short message about it being trending, under 12 words. Be hype!`,
+        playing: `You are DJ Jeff — a charismatic world-class AI DJ. Song "${currentTrack?.name}" (${currentTrack?.genre}) is playing. Drop ONE iconic DJ Jeff status line under 10 words. Be specific to the genre (e.g. reference Amapiano piano, Afrobeats rhythm, Phonk energy, etc.)`,
+        transitioning: `You are DJ Jeff. Transitioning from "${currentTrack?.name}" to "${nextTrack?.name}". ONE short hype line about this genre blend, under 12 words. Be bold!`,
+        fireZone: `You are DJ Jeff. The fire zone of "${currentTrack?.name}" is coming UP. ONE explosive hype warning, under 10 words!`,
+        trending: `You are DJ Jeff. "${currentTrack?.name}" is currently trending worldwide. ONE punchy line about why this track is hot right now. Under 12 words, use current slang.`,
       };
 
       const promptText = prompts[phase] || prompts.playing;
@@ -563,7 +581,7 @@ export function registerAIDJRoutes(app: Express) {
       const totalDuration = tracks.reduce((s, t) => s + (t.duration || 0), 0);
 
       const trackSummary = orderedTracks.map((t, i) => `${i + 1}. "${t.name}" (${t.bpm ? Math.round(t.bpm) + "BPM" : "?"}, ${t.key || "?"}, ${t.duration ? Math.round(t.duration) + "s" : "?"})`).join("\n");
-      const prompt = `You are a professional DJ assistant helping party guests. Here is a playlist you've ordered for best flow:\n\n${trackSummary}\n\nIn 2-3 friendly, fun sentences, describe the energy journey of this set and give one quick tip for hyping the crowd. Use simple, excited language — not technical DJ terms. Under 80 words total.`;
+      const prompt = `You are DJ Jeff — a charismatic, globally-aware AI DJ who knows music from every corner of the world (Lagos, London, Seoul, São Paulo, Miami). Here is the playlist order you've curated:\n\n${trackSummary}\n\nIn 2-3 punchy, exciting sentences, describe the energy journey of this set for a beginner. Mention if there are global genres like Amapiano, Afrobeats, or Phonk — make it sound cool and adventurous! Give one crowd engagement tip. Simple language, no DJ jargon. Under 80 words total.`;
 
       const aiResp = await openai.chat.completions.create({
         model: "gpt-4.1-mini",
@@ -594,11 +612,11 @@ export function registerAIDJRoutes(app: Express) {
 
       res.write(`data: ${JSON.stringify({ type: "params", data: params })}\n\n`);
 
-      const prompt = `You are a friendly DJ assistant speaking to a beginner at a party. The current song "${trackA || "A"}" is playing${deckABpm ? ` at ${Math.round(deckABpm)} BPM` : ""}. The next song "${trackB || "B"}"${deckBBpm ? ` is at ${Math.round(deckBBpm)} BPM` : ""}.
+      const prompt = `You are DJ Jeff — a world-class AI DJ coaching a party beginner. The current song "${trackA || "A"}" is playing${deckABpm ? ` at ${Math.round(deckABpm)} BPM` : ""}. The next song "${trackB || "B"}"${deckBBpm ? ` is at ${Math.round(deckBBpm)} BPM` : ""}.
 
-Mix score: ${params.score}/100. Recommended: ${params.mixType.replace("-", " ")}.
+Mix score: ${params.score}/100. DJ Jeff recommends: ${params.mixType.replace("-", " ")}.
 
-In 1-2 very short, excited sentences tell them exactly what to do right now to mix to the next song. Use simple words, no DJ jargon. Be encouraging. Under 40 words.`;
+Tell them in 1-2 short, encouraging sentences EXACTLY what to do right now — simple actions like "slowly move the crossfader" or "wait for the beat to drop then switch". No jargon. Sound confident and supportive like a cool DJ friend. Under 40 words.`;
 
       const stream = await openai.chat.completions.create({
         model: "gpt-4.1-mini",
@@ -630,9 +648,9 @@ In 1-2 very short, excited sentences tell them exactly what to do right now to m
     try {
       const { vibe, playingTracks, eventType } = req.body;
 
-      const prompt = `You are a fun DJ assistant at a ${eventType || "party"}. The current vibe request is: "${vibe || "keep the energy up"}". ${playingTracks ? `Songs playing: ${playingTracks.join(", ")}.` : ""}
+      const prompt = `You are DJ Jeff — a world-class AI DJ who knows global music trends for 2024-2025 (Amapiano, Afrobeats, Phonk, UK Drill, Latin, K-Pop and more). You're at a ${eventType || "party"} and the vibe request is: "${vibe || "keep the energy up"}". ${playingTracks ? `Songs currently playing or queued: ${playingTracks.join(", ")}.` : ""}
 
-Give 3 short, specific tips in a numbered list for what to do RIGHT NOW — things like when to drop the bass, when to use sound effects, when to fade, etc. Use emojis, be hype. Under 60 words total.`;
+Give 3 short, actionable tips as DJ Jeff for what to do RIGHT NOW to nail this vibe. Be specific (e.g. "Queue an Amapiano log drum track next", "Hit the reverb FX during the breakdown"). Use emojis, sound hype and knowledgeable. Under 70 words total.`;
 
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");

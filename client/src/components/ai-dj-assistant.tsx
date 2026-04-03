@@ -251,13 +251,21 @@ export function AIDJAssistant({ deckA, deckB, queue, engine, compact = false }: 
         className="glass-panel rounded-2xl p-4 space-y-3"
         style={{ borderColor: "rgba(191,90,242,0.25)", background: "linear-gradient(135deg, rgba(191,90,242,0.05), rgba(0,170,255,0.05))" }}
       >
-        <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #bf5af2, #0af)", boxShadow: "0 0 12px rgba(191,90,242,0.5)" }}>
-            <Sparkles className="w-3.5 h-3.5 text-white" />
+        <div className="flex items-center gap-2.5">
+          <div className="relative shrink-0">
+            <div className="w-9 h-9 rounded-full flex items-center justify-center font-black text-xs text-white" style={{ background: "linear-gradient(135deg, #bf5af2, #ff2d78, #0af)", boxShadow: "0 0 18px rgba(191,90,242,0.6)" }}>
+              DJ
+            </div>
+            <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-[#30d158] border-2 border-[#0a0519] flex items-center justify-center">
+              <span className="text-[5px]">✓</span>
+            </div>
           </div>
           <div>
-            <div className="text-xs font-black text-white">AI DJ ASSISTANT</div>
-            <div className="text-[9px] text-white/30">Powered by proprietary mix algorithm + AI</div>
+            <div className="text-sm font-black text-white tracking-wide">DJ JEFF</div>
+            <div className="text-[9px] text-white/35 flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#30d158] animate-pulse inline-block" />
+              Online · Global trends · 2024–2025
+            </div>
           </div>
           {mode !== "home" && (
             <button onClick={() => setMode("home")} className="ml-auto p-1.5 rounded-lg hover:bg-white/10 transition-colors">
@@ -267,61 +275,66 @@ export function AIDJAssistant({ deckA, deckB, queue, engine, compact = false }: 
         </div>
 
         {mode === "home" && (
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={analyzePlaylist}
-              disabled={loading || (!deckA.buffer && !deckB.buffer && queue.length === 0)}
-              className="flex flex-col items-start gap-1.5 p-3 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30"
-              style={{ background: "rgba(48,209,88,0.08)", borderColor: "rgba(48,209,88,0.20)" }}
-              data-testid="button-ai-analyze-playlist"
-            >
-              {loading ? <Loader2 className="w-5 h-5 text-[#30d158] animate-spin" /> : <ListMusic className="w-5 h-5 text-[#30d158]" />}
-              <div>
-                <div className="text-[10px] font-black text-[#30d158]">Smart Playlist</div>
-                <div className="text-[8px] text-white/30 leading-tight">AI orders your songs for best flow</div>
-              </div>
-            </button>
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={analyzePlaylist}
+                disabled={loading || (!deckA.buffer && !deckB.buffer && queue.length === 0)}
+                className="flex flex-col items-start gap-2 p-3.5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-[0.97] disabled:opacity-30 group"
+                style={{ background: "rgba(48,209,88,0.07)", borderColor: "rgba(48,209,88,0.18)" }}
+                data-testid="button-ai-analyze-playlist"
+              >
+                {loading ? <Loader2 className="w-5 h-5 text-[#30d158] animate-spin" /> : <ListMusic className="w-5 h-5 text-[#30d158]" />}
+                <div>
+                  <div className="text-[11px] font-black text-[#30d158]">Smart Playlist</div>
+                  <div className="text-[8px] text-white/25 leading-tight mt-0.5">Best song order by AI</div>
+                </div>
+              </button>
 
-            <button
-              onClick={getLiveAdvice}
-              disabled={!deckA.buffer || !deckB.buffer}
-              className="flex flex-col items-start gap-1.5 p-3 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30"
-              style={{ background: "rgba(0,170,255,0.08)", borderColor: "rgba(0,170,255,0.20)" }}
-              data-testid="button-ai-transition-advice"
-            >
-              <Zap className="w-5 h-5 text-[#0af]" />
-              <div>
-                <div className="text-[10px] font-black text-[#0af]">Mix Advice</div>
-                <div className="text-[8px] text-white/30 leading-tight">Real-time transition tips</div>
-              </div>
-            </button>
+              <button
+                onClick={getLiveAdvice}
+                disabled={!deckA.buffer || !deckB.buffer}
+                className="flex flex-col items-start gap-2 p-3.5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-[0.97] disabled:opacity-30"
+                style={{ background: "rgba(0,170,255,0.07)", borderColor: "rgba(0,170,255,0.18)" }}
+                data-testid="button-ai-transition-advice"
+              >
+                <Zap className="w-5 h-5 text-[#0af]" />
+                <div>
+                  <div className="text-[11px] font-black text-[#0af]">Mix Advice</div>
+                  <div className="text-[8px] text-white/25 leading-tight mt-0.5">Live transition coaching</div>
+                </div>
+              </button>
 
-            <button
-              onClick={executeAutoMix}
-              disabled={executingMix || !deckA.buffer || !deckB.buffer}
-              className="flex flex-col items-start gap-1.5 p-3 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98] disabled:opacity-30"
-              style={{ background: "rgba(255,45,120,0.08)", borderColor: "rgba(255,45,120,0.20)" }}
-              data-testid="button-ai-auto-mix"
-            >
-              {executingMix ? <Loader2 className="w-5 h-5 text-[#ff2d78] animate-spin" /> : <Play className="w-5 h-5 text-[#ff2d78]" />}
-              <div>
-                <div className="text-[10px] font-black text-[#ff2d78]">Auto Mix</div>
-                <div className="text-[8px] text-white/30 leading-tight">AI performs the transition</div>
-              </div>
-            </button>
+              <button
+                onClick={executeAutoMix}
+                disabled={executingMix || !deckA.buffer || !deckB.buffer}
+                className="flex flex-col items-start gap-2 p-3.5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-[0.97] disabled:opacity-30"
+                style={{ background: "rgba(255,45,120,0.07)", borderColor: "rgba(255,45,120,0.18)" }}
+                data-testid="button-ai-auto-mix"
+              >
+                {executingMix ? <Loader2 className="w-5 h-5 text-[#ff2d78] animate-spin" /> : <Play className="w-5 h-5 text-[#ff2d78]" />}
+                <div>
+                  <div className="text-[11px] font-black text-[#ff2d78]">Auto Mix</div>
+                  <div className="text-[8px] text-white/25 leading-tight mt-0.5">DJ Jeff mixes for you</div>
+                </div>
+              </button>
 
-            <button
-              onClick={() => setMode("vibe")}
-              className="flex flex-col items-start gap-1.5 p-3 rounded-xl border transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: "rgba(255,149,0,0.08)", borderColor: "rgba(255,149,0,0.20)" }}
-              data-testid="button-ai-vibe-tips"
-            >
-              <Sparkles className="w-5 h-5 text-[#ff9500]" />
-              <div>
-                <div className="text-[10px] font-black text-[#ff9500]">Vibe Coach</div>
-                <div className="text-[8px] text-white/30 leading-tight">Get hype tips by mood</div>
-              </div>
-            </button>
+              <button
+                onClick={() => setMode("vibe")}
+                className="flex flex-col items-start gap-2 p-3.5 rounded-2xl border transition-all hover:scale-[1.02] active:scale-[0.97]"
+                style={{ background: "rgba(255,149,0,0.07)", borderColor: "rgba(255,149,0,0.18)" }}
+                data-testid="button-ai-vibe-tips"
+              >
+                <Sparkles className="w-5 h-5 text-[#ff9500]" />
+                <div>
+                  <div className="text-[11px] font-black text-[#ff9500]">Vibe Coach</div>
+                  <div className="text-[8px] text-white/25 leading-tight mt-0.5">Tips for any mood</div>
+                </div>
+              </button>
+            </div>
+            <div className="px-2 py-1.5 rounded-lg text-[9px] text-white/20 text-center">
+              Load songs to unlock all features
+            </div>
           </div>
         )}
 

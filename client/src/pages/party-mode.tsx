@@ -10,24 +10,64 @@ import { PlatformSync } from "@/components/platform-sync";
 import { AIDJAssistant } from "@/components/ai-dj-assistant";
 import {
   ArrowLeft, Play, Pause, Upload, HelpCircle,
-  Sparkles, Zap, ChevronRight, ChevronLeft, Settings,
+  Sparkles, Zap, ChevronRight, Settings,
 } from "lucide-react";
 
 const PARTY_COLORS = ["#ff2d78", "#ff9500", "#ffd60a", "#30d158", "#0af", "#bf5af2", "#64d2ff", "#ff453a"];
 
-const PARTY_FX = [
-  { name: "AIR HORN", emoji: "📯", freq: 400, type: "horn" as const },
-  { name: "BASS DROP", emoji: "💥", freq: 60, type: "drop" as const },
-  { name: "SCRATCH", emoji: "🎵", freq: 800, type: "scratch" as const },
-  { name: "SIREN", emoji: "🚨", freq: 600, type: "siren" as const },
-  { name: "LASER", emoji: "⚡", freq: 2000, type: "laser" as const },
-  { name: "CLAP", emoji: "👏", freq: 1200, type: "clap" as const },
-  { name: "WOOSH", emoji: "💨", freq: 300, type: "woosh" as const },
-  { name: "YEAH!", emoji: "🤙", freq: 500, type: "vocal" as const },
-  { name: "BOMB", emoji: "💣", freq: 40, type: "bomb" as const },
-  { name: "RISER", emoji: "🚀", freq: 200, type: "riser" as const },
-  { name: "REWIND", emoji: "⏪", freq: 1500, type: "rewind" as const },
-  { name: "LET'S GO", emoji: "🙌", freq: 700, type: "crowd" as const },
+interface FXPad {
+  name: string;
+  emoji: string;
+  freq: number;
+  type: string;
+  category: "hype" | "trending" | "tools" | "vibes";
+  color: string;
+}
+
+const PARTY_FX: FXPad[] = [
+  // ── HYPE ──────────────────────────────────────────────────
+  { name: "AIR HORN", emoji: "📯", freq: 400, type: "horn", category: "hype", color: "#ff2d78" },
+  { name: "BASS DROP", emoji: "💥", freq: 60, type: "drop", category: "hype", color: "#ff453a" },
+  { name: "CROWD ROAR", emoji: "🙌", freq: 700, type: "crowd", category: "hype", color: "#ff9500" },
+  { name: "YEAH!", emoji: "🎤", freq: 500, type: "vocal", category: "hype", color: "#ffd60a" },
+  { name: "LET'S GO", emoji: "🔥", freq: 650, type: "letsgo", category: "hype", color: "#ff2d78" },
+  { name: "FOG HORN", emoji: "🚢", freq: 80, type: "foghorn", category: "hype", color: "#ff453a" },
+  { name: "SIREN", emoji: "🚨", freq: 600, type: "siren", category: "hype", color: "#ffd60a" },
+  { name: "WHISTLE", emoji: "😮‍💨", freq: 3000, type: "whistle", category: "hype", color: "#30d158" },
+  // ── TRENDING 2025 ─────────────────────────────────────────
+  { name: "AMAPIANO", emoji: "🪘", freq: 90, type: "amapiano", category: "trending", color: "#ffd60a" },
+  { name: "PHONK", emoji: "💀", freq: 110, type: "phonk", category: "trending", color: "#ff453a" },
+  { name: "DRILL DROP", emoji: "🔫", freq: 50, type: "drill", category: "trending", color: "#64d2ff" },
+  { name: "JERSEY CLUB", emoji: "🏙️", freq: 130, type: "jersey", category: "trending", color: "#bf5af2" },
+  { name: "TRAP ROLL", emoji: "⚡", freq: 160, type: "traproll", category: "trending", color: "#0af" },
+  { name: "UK GARAGE", emoji: "🇬🇧", freq: 140, type: "ukgarage", category: "trending", color: "#30d158" },
+  { name: "DEMBOW", emoji: "🌴", freq: 100, type: "dembow", category: "trending", color: "#ff9500" },
+  { name: "AFRO HI-HAT", emoji: "🌍", freq: 120, type: "afrohihat", category: "trending", color: "#ffd60a" },
+  // ── DJ TOOLS ──────────────────────────────────────────────
+  { name: "SCRATCH", emoji: "🎵", freq: 800, type: "scratch", category: "tools", color: "#bf5af2" },
+  { name: "REWIND", emoji: "⏪", freq: 1500, type: "rewind", category: "tools", color: "#0af" },
+  { name: "RISER", emoji: "🚀", freq: 200, type: "riser", category: "tools", color: "#30d158" },
+  { name: "WOOSH", emoji: "💨", freq: 300, type: "woosh", category: "tools", color: "#64d2ff" },
+  { name: "FILTER SWEEP", emoji: "🔊", freq: 400, type: "sweep", category: "tools", color: "#bf5af2" },
+  { name: "LASER", emoji: "🔴", freq: 2000, type: "laser", category: "tools", color: "#ff2d78" },
+  { name: "VINYL STOP", emoji: "⏹️", freq: 600, type: "vinyl_stop", category: "tools", color: "#0af" },
+  { name: "STUTTER", emoji: "🔁", freq: 900, type: "stutter", category: "tools", color: "#ff9500" },
+  // ── VIBES ─────────────────────────────────────────────────
+  { name: "SUB HIT", emoji: "💣", freq: 35, type: "sub_hit", category: "vibes", color: "#ff453a" },
+  { name: "CLAP", emoji: "👏", freq: 1200, type: "clap", category: "vibes", color: "#30d158" },
+  { name: "REV CYMBAL", emoji: "🥁", freq: 500, type: "reverse_cym", category: "vibes", color: "#ffd60a" },
+  { name: "BUILD UP", emoji: "📈", freq: 150, type: "build", category: "vibes", color: "#bf5af2" },
+  { name: "ROBOT", emoji: "🤖", freq: 440, type: "robot", category: "vibes", color: "#0af" },
+  { name: "CHIME", emoji: "🔔", freq: 1760, type: "chime", category: "vibes", color: "#64d2ff" },
+  { name: "RECORD SKIP", emoji: "💿", freq: 700, type: "record_skip", category: "vibes", color: "#ff9500" },
+  { name: "BOMB", emoji: "💥", freq: 40, type: "bomb", category: "vibes", color: "#ff453a" },
+];
+
+const FX_CATEGORIES: { id: FXPad["category"]; label: string; emoji: string; color: string }[] = [
+  { id: "hype", label: "Hype", emoji: "🔥", color: "#ff2d78" },
+  { id: "trending", label: "Trending", emoji: "📈", color: "#ffd60a" },
+  { id: "tools", label: "DJ Tools", emoji: "🎛️", color: "#bf5af2" },
+  { id: "vibes", label: "Vibes", emoji: "✨", color: "#30d158" },
 ];
 
 function generatePartySound(ctx: AudioContext, type: string, freq: number) {
@@ -119,6 +159,198 @@ function generatePartySound(ctx: AudioContext, type: string, freq: number) {
       }
       const src = ctx.createBufferSource(); src.buffer = buf; src.connect(masterGain); src.start(now); break;
     }
+    case "letsgo": {
+      const osc = ctx.createOscillator(); osc.type = "square";
+      const dist = ctx.createWaveShaper();
+      const curve = new Float32Array(256);
+      for (let i = 0; i < 256; i++) { const x = (i*2/256)-1; curve[i] = Math.max(-1, Math.min(1, x*3)); }
+      dist.curve = curve;
+      osc.frequency.setValueAtTime(freq*0.8, now); osc.frequency.linearRampToValueAtTime(freq*1.3, now+0.3);
+      osc.frequency.linearRampToValueAtTime(freq, now+0.5);
+      osc.connect(dist); dist.connect(masterGain);
+      masterGain.gain.setValueAtTime(0.6, now); masterGain.gain.linearRampToValueAtTime(0, now+0.7);
+      osc.start(now); osc.stop(now+0.7); break;
+    }
+    case "foghorn": {
+      const osc1 = ctx.createOscillator(); const osc2 = ctx.createOscillator();
+      osc1.type = "sine"; osc2.type = "sine";
+      osc1.frequency.value = freq; osc2.frequency.value = freq * 1.01;
+      osc1.connect(masterGain); osc2.connect(masterGain);
+      masterGain.gain.setValueAtTime(0, now); masterGain.gain.linearRampToValueAtTime(0.8, now+0.2);
+      masterGain.gain.setValueAtTime(0.8, now+0.8); masterGain.gain.linearRampToValueAtTime(0, now+1.2);
+      osc1.start(now); osc1.stop(now+1.2); osc2.start(now); osc2.stop(now+1.2); break;
+    }
+    case "whistle": {
+      const osc = ctx.createOscillator(); osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now); osc.frequency.linearRampToValueAtTime(freq*1.15, now+0.08);
+      osc.frequency.linearRampToValueAtTime(freq, now+0.2);
+      osc.connect(masterGain); masterGain.gain.linearRampToValueAtTime(0, now+0.3);
+      osc.start(now); osc.stop(now+0.3); break;
+    }
+    case "amapiano": {
+      const dur = 0.6;
+      [0, 0.15, 0.3, 0.45].forEach((offset, i) => {
+        const osc = ctx.createOscillator(); const g = ctx.createGain();
+        osc.type = "sine"; osc.frequency.value = freq * [1, 1.5, 1.25, 2][i];
+        g.gain.setValueAtTime(0.5, now+offset); g.gain.exponentialRampToValueAtTime(0.01, now+offset+0.12);
+        osc.connect(g); g.connect(masterGain);
+        osc.start(now+offset); osc.stop(now+offset+0.12);
+      });
+      break;
+    }
+    case "phonk": {
+      const osc = ctx.createOscillator(); osc.type = "square";
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 800;
+      osc.frequency.setValueAtTime(freq, now);
+      [0, 0.12, 0.24].forEach(o => {
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.7, now+o); g.gain.exponentialRampToValueAtTime(0.01, now+o+0.1);
+        osc.connect(lp); lp.connect(g); g.connect(masterGain);
+      });
+      osc.start(now); osc.stop(now+0.35); break;
+    }
+    case "drill": {
+      const osc = ctx.createOscillator(); osc.type = "sine";
+      osc.frequency.setValueAtTime(200, now); osc.frequency.exponentialRampToValueAtTime(freq, now+0.08);
+      const hihat = ctx.createOscillator(); hihat.type = "square"; hihat.frequency.value = 8000;
+      const hg = ctx.createGain(); hg.gain.setValueAtTime(0.3, now);
+      [0.05, 0.1, 0.125, 0.15, 0.175, 0.2].forEach(t => {
+        hg.gain.setValueAtTime(0.3, now+t); hg.gain.exponentialRampToValueAtTime(0.001, now+t+0.025);
+      });
+      hihat.connect(hg); hg.connect(masterGain);
+      osc.connect(masterGain); masterGain.gain.setValueAtTime(0.8, now); masterGain.gain.linearRampToValueAtTime(0, now+0.4);
+      osc.start(now); osc.stop(now+0.4); hihat.start(now); hihat.stop(now+0.3); break;
+    }
+    case "jersey": {
+      const notes = [freq, freq*1.5, freq*2, freq*1.5];
+      notes.forEach((n, i) => {
+        const osc = ctx.createOscillator(); const g = ctx.createGain();
+        osc.type = "triangle"; osc.frequency.value = n;
+        const t = now + i*0.075;
+        g.gain.setValueAtTime(0.5, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.07);
+        osc.connect(g); g.connect(masterGain);
+        osc.start(t); osc.stop(t+0.07);
+      }); break;
+    }
+    case "traproll": {
+      const hihat = ctx.createOscillator(); hihat.type = "square"; hihat.frequency.value = 12000;
+      const g = ctx.createGain();
+      const speeds = [0, 0.04, 0.08, 0.1, 0.12, 0.13, 0.14, 0.145, 0.15, 0.155, 0.16, 0.165, 0.17];
+      speeds.forEach(t => {
+        g.gain.setValueAtTime(0.4, now+t); g.gain.exponentialRampToValueAtTime(0.001, now+t+0.035);
+      });
+      hihat.connect(g); g.connect(masterGain);
+      hihat.start(now); hihat.stop(now+0.25); break;
+    }
+    case "ukgarage": {
+      const osc = ctx.createOscillator(); osc.type = "sawtooth";
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 1200;
+      osc.frequency.setValueAtTime(freq, now); osc.frequency.setValueAtTime(freq*0.75, now+0.125); osc.frequency.setValueAtTime(freq, now+0.25);
+      osc.connect(lp); lp.connect(masterGain);
+      masterGain.gain.setValueAtTime(0.6, now); masterGain.gain.linearRampToValueAtTime(0, now+0.4);
+      osc.start(now); osc.stop(now+0.4); break;
+    }
+    case "dembow": {
+      const kick = ctx.createOscillator(); kick.type = "sine";
+      kick.frequency.setValueAtTime(220, now); kick.frequency.exponentialRampToValueAtTime(40, now+0.1);
+      const kg = ctx.createGain(); kg.gain.setValueAtTime(0.9, now); kg.gain.exponentialRampToValueAtTime(0.001, now+0.15);
+      kick.connect(kg); kg.connect(masterGain);
+      const snare = ctx.createOscillator(); snare.type = "square"; snare.frequency.value = 300;
+      const sg = ctx.createGain(); sg.gain.setValueAtTime(0, now+0.25); sg.gain.setValueAtTime(0.6, now+0.25); sg.gain.exponentialRampToValueAtTime(0.001, now+0.35);
+      snare.connect(sg); sg.connect(masterGain);
+      kick.start(now); kick.stop(now+0.15); snare.start(now+0.25); snare.stop(now+0.35); break;
+    }
+    case "afrohihat": {
+      [0, 0.08, 0.16, 0.2, 0.24, 0.32].forEach((t, i) => {
+        const buf = ctx.createBuffer(1, ctx.sampleRate*0.05, ctx.sampleRate);
+        const d = buf.getChannelData(0);
+        for (let j = 0; j < d.length; j++) d[j] = (Math.random()*2-1) * Math.exp(-j/(ctx.sampleRate*0.015));
+        const src = ctx.createBufferSource(); src.buffer = buf;
+        const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 6000;
+        const g = ctx.createGain(); g.gain.value = i % 3 === 0 ? 0.6 : 0.35;
+        src.connect(hp); hp.connect(g); g.connect(masterGain);
+        src.start(now+t); src.stop(now+t+0.05);
+      }); break;
+    }
+    case "sweep": {
+      const osc = ctx.createOscillator(); osc.type = "sawtooth";
+      const filter = ctx.createBiquadFilter(); filter.type = "bandpass"; filter.Q.value = 3;
+      filter.frequency.setValueAtTime(200, now); filter.frequency.exponentialRampToValueAtTime(8000, now+1.0);
+      osc.frequency.value = 50;
+      osc.connect(filter); filter.connect(masterGain);
+      masterGain.gain.setValueAtTime(0.3, now); masterGain.gain.linearRampToValueAtTime(0.6, now+0.8); masterGain.gain.linearRampToValueAtTime(0, now+1.0);
+      osc.start(now); osc.stop(now+1.0); break;
+    }
+    case "vinyl_stop": {
+      const osc = ctx.createOscillator(); osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(freq, now); osc.frequency.exponentialRampToValueAtTime(freq*0.02, now+0.8);
+      osc.connect(masterGain); masterGain.gain.setValueAtTime(0.5, now); masterGain.gain.linearRampToValueAtTime(0, now+0.8);
+      osc.start(now); osc.stop(now+0.8); break;
+    }
+    case "stutter": {
+      for (let i = 0; i < 8; i++) {
+        const t = now + i*0.04;
+        const osc = ctx.createOscillator(); osc.type = "square"; osc.frequency.value = freq;
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.4*(1-i*0.08), t); g.gain.exponentialRampToValueAtTime(0.001, t+0.035);
+        osc.connect(g); g.connect(masterGain);
+        osc.start(t); osc.stop(t+0.035);
+      } break;
+    }
+    case "sub_hit": {
+      const osc = ctx.createOscillator(); osc.type = "sine";
+      osc.frequency.setValueAtTime(120, now); osc.frequency.exponentialRampToValueAtTime(freq, now+0.05);
+      osc.connect(masterGain); masterGain.gain.setValueAtTime(1.0, now); masterGain.gain.exponentialRampToValueAtTime(0.001, now+0.5);
+      osc.start(now); osc.stop(now+0.5); break;
+    }
+    case "reverse_cym": {
+      const sr = ctx.sampleRate; const dur = 1.2;
+      const buf = ctx.createBuffer(1, sr*dur, sr); const d = buf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) {
+        const t = i/sr; d[i] = (Math.random()*2-1) * (t/dur) * 0.6;
+      }
+      const src = ctx.createBufferSource(); src.buffer = buf;
+      const hp = ctx.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 3000;
+      src.connect(hp); hp.connect(masterGain);
+      masterGain.gain.setValueAtTime(0.3, now); masterGain.gain.linearRampToValueAtTime(0.7, now+1.1); masterGain.gain.linearRampToValueAtTime(0, now+1.2);
+      src.start(now); break;
+    }
+    case "build": {
+      const osc = ctx.createOscillator(); osc.type = "sawtooth";
+      const lp = ctx.createBiquadFilter(); lp.type = "lowpass";
+      lp.frequency.setValueAtTime(200, now); lp.frequency.exponentialRampToValueAtTime(8000, now+2.0);
+      osc.frequency.setValueAtTime(50, now); osc.frequency.linearRampToValueAtTime(100, now+2.0);
+      osc.connect(lp); lp.connect(masterGain);
+      masterGain.gain.setValueAtTime(0.05, now); masterGain.gain.linearRampToValueAtTime(0.7, now+1.8); masterGain.gain.linearRampToValueAtTime(0, now+2.0);
+      osc.start(now); osc.stop(now+2.0); break;
+    }
+    case "robot": {
+      const osc = ctx.createOscillator(); osc.type = "square";
+      const lp = ctx.createBiquadFilter(); lp.type = "bandpass"; lp.frequency.value = freq; lp.Q.value = 15;
+      const trm = ctx.createOscillator(); const tg = ctx.createGain();
+      trm.type = "square"; trm.frequency.value = 8;
+      trm.connect(tg); tg.gain.value = 0.5;
+      osc.connect(lp); lp.connect(masterGain);
+      masterGain.gain.setValueAtTime(0.5, now); masterGain.gain.linearRampToValueAtTime(0, now+0.5);
+      osc.start(now); osc.stop(now+0.5); trm.start(now); trm.stop(now+0.5); break;
+    }
+    case "chime": {
+      [1, 1.26, 1.5, 2.0].forEach((ratio, i) => {
+        const osc = ctx.createOscillator(); const g = ctx.createGain();
+        osc.type = "sine"; osc.frequency.value = freq*ratio;
+        const t = now + i*0.05;
+        g.gain.setValueAtTime(0.4, t); g.gain.exponentialRampToValueAtTime(0.001, t+1.5);
+        osc.connect(g); g.connect(masterGain);
+        osc.start(t); osc.stop(t+1.5);
+      }); break;
+    }
+    case "record_skip": {
+      const osc = ctx.createOscillator(); osc.type = "sawtooth";
+      [0, 0.08, 0.16].forEach((offset) => {
+        const g = ctx.createGain(); g.gain.setValueAtTime(0.5, now+offset); g.gain.exponentialRampToValueAtTime(0.001, now+offset+0.07);
+        osc.frequency.setValueAtTime(freq, now+offset); osc.frequency.exponentialRampToValueAtTime(freq*0.4, now+offset+0.07);
+        osc.connect(g); g.connect(masterGain);
+      });
+      osc.start(now); osc.stop(now+0.3); break;
+    }
   }
 }
 
@@ -132,7 +364,7 @@ export default function PartyMode() {
   const [crossfade, setCrossfade] = useState(0.5);
   const [showTips, setShowTips] = useState(false);
   const [activeSection, setActiveSection] = useState<PartySection>("mix");
-  const [padPage, setPadPage] = useState(0);
+  const [fxCategory, setFxCategory] = useState<FXPad["category"]>("hype");
   const fileInputARef = useRef<HTMLInputElement>(null);
   const fileInputBRef = useRef<HTMLInputElement>(null);
   const [showFirstTimeTip, setShowFirstTimeTip] = useState(true);
@@ -272,9 +504,7 @@ export default function PartyMode() {
   const deckA = engine.decks.A;
   const deckB = engine.decks.B;
 
-  const padsPerPage = 8;
-  const totalPages = Math.ceil(PARTY_FX.length / padsPerPage);
-  const visiblePads = PARTY_FX.slice(padPage * padsPerPage, (padPage + 1) * padsPerPage);
+  const visiblePads = PARTY_FX.filter(fx => fx.category === fxCategory);
 
   const sections: { id: PartySection; label: string; emoji: string }[] = [
     { id: "mix", label: "Mix", emoji: "🎛️" },
@@ -454,50 +684,62 @@ export default function PartyMode() {
 
         {activeSection === "fx" && (
           <div className="space-y-3 animate-slide-in-up">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-[#ffd60a]" />
-                <span className="text-sm font-bold text-white/80">Sound FX Pads</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setPadPage((p) => Math.max(0, p - 1))} disabled={padPage === 0}
-                  className="p-1.5 rounded-lg bg-white/5 disabled:opacity-30 hover:bg-white/10" data-testid="button-pad-prev">
-                  <ChevronLeft className="w-4 h-4 text-white/50" />
+            <div className="flex items-center gap-2">
+              <Zap className="w-4 h-4 text-[#ffd60a]" />
+              <span className="text-sm font-bold text-white/80">Sound FX Library</span>
+              <span className="ml-auto text-[9px] text-white/25">{PARTY_FX.length} sounds</span>
+            </div>
+            <div className="grid grid-cols-4 gap-1.5">
+              {FX_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setFxCategory(cat.id)}
+                  className="py-2 px-1 rounded-xl text-[9px] font-black transition-all flex flex-col items-center gap-0.5"
+                  style={{
+                    background: fxCategory === cat.id ? `${cat.color}22` : "rgba(255,255,255,0.04)",
+                    border: `1.5px solid ${fxCategory === cat.id ? cat.color + "50" : "rgba(255,255,255,0.08)"}`,
+                    color: fxCategory === cat.id ? cat.color : "rgba(255,255,255,0.35)",
+                    boxShadow: fxCategory === cat.id ? `0 0 12px ${cat.color}25` : "none",
+                  }}
+                  data-testid={`button-fx-category-${cat.id}`}
+                >
+                  <span className="text-base">{cat.emoji}</span>
+                  {cat.label}
                 </button>
-                <span className="text-[10px] text-white/30">{padPage + 1}/{totalPages}</span>
-                <button onClick={() => setPadPage((p) => Math.min(totalPages - 1, p + 1))} disabled={padPage === totalPages - 1}
-                  className="p-1.5 rounded-lg bg-white/5 disabled:opacity-30 hover:bg-white/10" data-testid="button-pad-next">
-                  <ChevronRight className="w-4 h-4 text-white/50" />
-                </button>
-              </div>
+              ))}
             </div>
             <div className="grid grid-cols-4 gap-2">
-              {visiblePads.map((fx, pageIdx) => {
-                const i = padPage * padsPerPage + pageIdx;
-                const color = PARTY_COLORS[i % PARTY_COLORS.length];
+              {visiblePads.map((fx) => {
+                const i = PARTY_FX.indexOf(fx);
                 const isActive = activePad === i;
                 return (
                   <button
                     key={fx.name}
                     onClick={() => handleFxPad(i)}
-                    className="pad-button rounded-2xl p-3 flex flex-col items-center gap-1.5 transition-all active:scale-90"
+                    className="pad-button rounded-2xl p-2.5 flex flex-col items-center gap-1.5 transition-all active:scale-90"
                     style={{
-                      background: isActive ? `${color}50` : `${color}12`,
-                      border: `1.5px solid ${color}${isActive ? "90" : "28"}`,
-                      boxShadow: isActive ? `0 0 25px ${color}50, 0 0 50px ${color}20` : "none",
-                      minHeight: 90,
+                      background: isActive ? `${fx.color}45` : `${fx.color}10`,
+                      border: `1.5px solid ${fx.color}${isActive ? "80" : "25"}`,
+                      boxShadow: isActive ? `0 0 22px ${fx.color}55, 0 0 44px ${fx.color}18` : "none",
+                      minHeight: 82,
                     }}
                     data-testid={`button-fx-${fx.name.toLowerCase().replace(/[^a-z]/g, '-')}`}
                   >
                     <span className="text-2xl">{fx.emoji}</span>
-                    <span className="text-[8px] font-black tracking-wider leading-tight text-center" style={{ color }}>
+                    <span className="text-[8px] font-black tracking-wider leading-tight text-center" style={{ color: isActive ? "#fff" : fx.color }}>
                       {fx.name}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <TipBubble text="Tap any button to fire a sound effect! Bass Drop and Air Horn work great when the beat hits! 🔥" />
+            {fxCategory === "trending" && (
+              <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-[#ffd60a]/8 border border-[#ffd60a]/15">
+                <span className="text-[9px]">📡</span>
+                <span className="text-[9px] text-[#ffd60a]/70">Sounds inspired by global trends: Amapiano, Phonk, Drill & more</span>
+              </div>
+            )}
+            <TipBubble text="Try Trending sounds to add global flavor! Amapiano & Phonk are massive right now 🌍" />
           </div>
         )}
 

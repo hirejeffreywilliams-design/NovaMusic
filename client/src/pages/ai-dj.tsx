@@ -69,16 +69,18 @@ const GENRE_COLORS: Record<string, string> = {
 };
 
 const DJ_MESSAGES = [
-  "I'm feeling this transition 🔥",
-  "Watch this drop! 💥",
-  "Genre switch incoming! 🎵",
-  "This one's trending right now, let's GO! 🚀",
-  "Beatmatching... locked in! ⚡",
-  "Crossfade in 3... 2... 1! 🎧",
-  "The crowd is going crazy! 🙌",
-  "Energy at maximum! 💫",
-  "Smooth like butter! 🌊",
-  "This is the fire zone! 🔥",
+  "DJ Jeff in the building — watch this drop! 🔥",
+  "Crossfade locked. Smooth blend incoming 💥",
+  "Genre switch — DJ Jeff keeps it fresh! 🎵",
+  "This one is trending worldwide, let's RIDE! 🚀",
+  "BPM sync locked — DJ Jeff never misses ⚡",
+  "Blend in 3... 2... 1... that's DJ Jeff magic 🎧",
+  "The room just shifted — feel it! 🙌",
+  "Energy arc peaking — DJ Jeff cooking! 💫",
+  "Harmonic mix — smooth as silk 🌊",
+  "Fire zone activated — DJ Jeff on the wheels! 🔥",
+  "Amapiano vibes incoming from DJ Jeff 🌍",
+  "DJ Jeff reading the crowd perfectly 👁️",
 ];
 
 function ParticleBackground() {
