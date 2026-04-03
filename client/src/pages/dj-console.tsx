@@ -7,7 +7,7 @@ import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
 import { CrowdHub } from "@/components/crowd-hub";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
@@ -17,7 +17,7 @@ import { getStableDjId } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "settings";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "marketplace" | "settings";
 
 interface ActiveEvent {
   id: string;
@@ -142,6 +142,7 @@ export default function DJConsole() {
     { id: "mic", label: "Mic", icon: Mic2 },
     { id: "ai", label: "AI DJ", icon: Sparkles },
     { id: "crowd", label: "Crowd Hub", icon: Users },
+    { id: "marketplace", label: "Market", icon: ShoppingBag },
     { id: "settings", label: "Setup", icon: Settings },
   ];
 
@@ -300,7 +301,6 @@ export default function DJConsole() {
             />
           </div>
         )}
-
         {activeTab === "crowd" && (
           <div className="max-w-2xl mx-auto pt-2 pb-4 overflow-y-auto h-full">
             {!activeEvent ? (
@@ -317,6 +317,38 @@ export default function DJConsole() {
           </div>
         )}
 
+        {activeTab === "marketplace" && (
+          <div className="max-w-2xl mx-auto pt-4 overflow-y-auto pb-4 px-2">
+            <div className="text-center mb-5">
+              <ShoppingBag className="w-8 h-8 text-[#ffd60a] mx-auto mb-2" />
+              <h3 className="text-lg font-black text-white">Music Marketplace</h3>
+              <p className="text-white/50 text-xs mt-1">Browse independent artist tracks, preview 30s clips, and add them to your decks</p>
+            </div>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => navigate("/marketplace")}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-black text-sm bg-[#ffd60a] hover:scale-[1.02] transition-all"
+                data-testid="button-open-marketplace"
+              >
+                <ShoppingBag className="w-4 h-4" />
+                Browse Marketplace
+              </button>
+              <button
+                onClick={() => navigate("/event-history")}
+                className="flex items-center gap-2 px-6 py-3 rounded-xl font-bold text-white/70 text-sm bg-white/5 hover:bg-white/10 transition-all"
+                data-testid="button-open-event-history"
+              >
+                <FileText className="w-4 h-4" />
+                Event Play Logs
+              </button>
+            </div>
+            <div className="mt-6 bg-[#ffd60a]/5 border border-[#ffd60a]/20 rounded-2xl p-4 text-center">
+              <p className="text-xs text-white/50 leading-relaxed">
+                Tracks downloaded from the Marketplace are cached locally in your browser for offline playback. Each play at a live event is tracked for royalty calculation.
+              </p>
+            </div>
+          </div>
+        )}
         {activeTab === "settings" && (
           <div className="max-w-lg mx-auto pt-4 space-y-5 overflow-y-auto pb-4">
             <div>

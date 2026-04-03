@@ -19,7 +19,7 @@ Preferred communication style: Simple, everyday language.
 ### Frontend
 
 - **Framework**: React 18 with TypeScript
-- **Routing**: Wouter — 4 routes: Landing (`/`), AI DJ (`/ai-dj`), DJ Console (`/console`), Party Mode (`/party`)
+- **Routing**: Wouter — routes: `/`, `/ai-dj`, `/console`, `/party`, `/compliance`, `/terms`, `/signup`, `/artist/dashboard`, `/marketplace`, `/admin/royalties`, `/event-history`
 - **State Management**: React hooks and TanStack React Query
 - **UI Components**: shadcn/ui (new-york style) built on Radix UI primitives
 - **Styling**: Tailwind CSS with neon party theme (dark-first, purple/blue/pink/green accents)
@@ -28,53 +28,79 @@ Preferred communication style: Simple, everyday language.
 
 ### Pages
 
-- `client/src/pages/landing.tsx` — Animated landing page with particle effects, gradient text, and navigation to all experiences; AI DJ Mode card is the featured/recommended option
-- `client/src/pages/ai-dj.tsx` — **NEW** Beginner AI DJ experience with 4 screens: Upload, Scanning, Setlist, Playing. Full AI-powered pipeline with file upload, metadata analysis, Fire Zone detection, trending detection, setlist planning, and automated mixing
-- `client/src/pages/dj-console.tsx` — Pro DJ console with tabbed views (Decks, FX Rack, Sound Pads, Visualizer), 2/4 deck toggle, fullscreen mode
-- `client/src/pages/party-mode.tsx` — Mobile-optimized party experience with 2 decks, crossfader, 12 synthesized party sound FX pads, quick actions
+- `client/src/pages/landing.tsx` — Animated landing page with particle effects, gradient text, and navigation to all experiences; footer links to compliance, terms, marketplace, signup, event history
+- `client/src/pages/ai-dj.tsx` — Beginner AI DJ experience with 4 screens: Upload, Scanning, Setlist, Playing
+- `client/src/pages/dj-console.tsx` — Pro DJ console with tabbed views including Marketplace tab
+- `client/src/pages/party-mode.tsx` — Mobile-optimized party experience
+- `client/src/pages/compliance.tsx` — Compliance Center: performance rights explained, ASCAP/BMI/SESAC links, SoundExchange explanation, Marketplace license explainer, attorney disclaimer
+- `client/src/pages/terms.tsx` — Full Terms of Service: no PRO remittance, artist upload warranty, royalty payout terms, 15% platform fee, no legal advice disclaimer
+- `client/src/pages/signup.tsx` — DJ/Artist account creation with required TOS checkbox and (for DJs) venue licensing acknowledgment checkbox
+- `client/src/pages/artist-dashboard.tsx` — Artist Dashboard: track catalog, earnings, payout history, profile editor, track upload with license type selection
+- `client/src/pages/marketplace.tsx` — Browse/search/filter marketplace tracks by genre/BPM/key/license, preview audio, add to deck (logs download event)
+- `client/src/pages/admin-royalties.tsx` — Admin panel: royalty totals, breakdown by artist, pending payouts with "Mark as Paid", monthly calculation trigger
+- `client/src/pages/event-history.tsx` — Event Play Log: create events, manually add tracks, auto-logged tracks, CSV download with PRO compliance notice
 
 ### Key Components
 
-- `DeckPanel` (`client/src/components/deck-panel.tsx`) — Individual deck with animated spinning turntable, waveform display, play/pause, cue, speed/volume controls, 3-band EQ, loop controls (0.5-16 beats), 4 hot cues
-- `MixerPanel` (`client/src/components/mixer-panel.tsx`) — Dual crossfaders (A/B and C/D for 4-deck mode), master gain, preset selection, VU meters, recording controls
-- `SoundboardPanel` (`client/src/components/soundboard-panel.tsx`) — 8 sample pads with custom sound loading, visual feedback on trigger
-- `VisualizerPanel` (`client/src/components/visualizer-panel.tsx`) — 6 visualization modes (Bars, Circular, Particles, Wave, Spectrum, Matrix) using canvas rendering
-- `FXPanel` (`client/src/components/fx-panel.tsx`) — Per-deck FX controls with visual knobs: Filter (LPF/HPF), Reverb, Delay, 3-band EQ
-- `Turntable` (`client/src/components/turntable.tsx`) — Animated spinning vinyl record canvas component, spins when playing, glows with deck color, accepts any hex color including shorthand (#0af)
-- `Microphone` (`client/src/components/microphone.tsx`) — Live microphone input via Web Audio API, routes phone mic through music output, has gain slider and real-time VU meter bars, works in both Party Mode and DJ Console
-- `BeginnerTips` / `TipBubble` (`client/src/components/beginner-tips.tsx`) — Step-by-step tutorial overlay for first-time users (6 steps), dismissable tip bubble for contextual hints
-- `SongQueue` (`client/src/components/song-queue.tsx`) — Collapsible playlist/queue manager per deck; supports multi-file upload, folder upload (webkitdirectory), reorder, remove, auto-advance to next song when track ends
-- `AudioOutput` (`client/src/components/audio-output.tsx`) — Bluetooth/audio device selector using `navigator.mediaDevices.enumerateDevices()`; lists all audio outputs including Bluetooth devices; uses `AudioContext.setSinkId()` where supported (Chrome 110+); includes step-by-step Bluetooth guide for unsupported browsers
-- `PlatformSync` (`client/src/components/platform-sync.tsx`) — Music platform connection UI; local file upload and folder import are READY; Apple Music, Spotify, YouTube Music, SoundCloud marked as COMING SOON with honest explanations
+- `DeckPanel` (`client/src/components/deck-panel.tsx`) — Individual deck with animated spinning turntable, waveform display, play/pause, cue, speed/volume controls, 3-band EQ, loop controls, 4 hot cues
+- `MixerPanel` (`client/src/components/mixer-panel.tsx`) — Dual crossfaders (A/B and C/D), master gain, VU meters, recording controls
+- `SoundboardPanel` (`client/src/components/soundboard-panel.tsx`) — 8 sample pads with custom sound loading
+- `VisualizerPanel` (`client/src/components/visualizer-panel.tsx`) — 6 visualization modes using canvas rendering
+- `FXPanel` (`client/src/components/fx-panel.tsx`) — Per-deck FX controls: Filter, Reverb, Delay, 3-band EQ
+- `Turntable` (`client/src/components/turntable.tsx`) — Animated spinning vinyl record canvas component
+- `Microphone` (`client/src/components/microphone.tsx`) — Live microphone input via Web Audio API
+- `SongQueue` (`client/src/components/song-queue.tsx`) — Collapsible playlist/queue manager per deck
 
 ### Audio Engine
 
 - `client/src/hooks/use-audio-engine.ts` — Core Web Audio API engine supporting 4 decks
 - Full signal chain per deck: source → stems → 3-band EQ → filter → delay → reverb → gain → analyzer → master
-- Mastering chain: compressor → master gain → destination
-- Features: BPM detection, key detection, beat grid, auto-mix, hot cues with auto-placement, loop controls, stem isolation, transition effects (spinback/brake/echo-out), 8-pad sampler with synthesized sounds, mix recording
 
 ### Backend
 
 - **Runtime**: Node.js with TypeScript (tsx for development)
 - **Framework**: Express.js
 - **API Endpoints**:
-  - `POST /api/analyze` — Placeholder for legacy analysis
-  - `POST /api/mix-suggestion` — Harmonic compatibility via Camelot wheel
-  - `POST /api/ai-dj/analyze-tracks` — Multi-file upload endpoint; uses OpenAI GPT-4.1-mini to analyze track names for BPM/key/genre/mood/energy/trending status/fire zone; returns structured AnalyzedTrack array
-  - `POST /api/ai-dj/build-setlist` — Takes analyzed tracks + vibe (chill/party/hype), builds optimal order, calculates transitions, generates energy arc and genre journey, adds AI commentary via OpenAI
-  - `POST /api/ai-dj/dj-status` — Generates live AI DJ persona status messages based on current play state
-  - `POST /api/ai-dj/analyze-playlist` — Legacy endpoint for basic playlist analysis
-  - `POST /api/ai-dj/transition-advice` — Streaming SSE endpoint for real-time transition advice
-  - `POST /api/ai-dj/vibe-tips` — Streaming SSE endpoint for vibe-specific DJ tips
-  - `POST /api/ai-dj/auto-mix-plan` — Returns step-by-step auto-mix commands
-- **File Uploads**: Multer (temp storage, files deleted after processing)
+  - `POST /api/analyze` — Placeholder analysis
+  - `POST /api/mix-suggestion` — Harmonic compatibility
+  - `POST /api/ai-dj/*` — AI DJ endpoints (OpenAI-powered)
+  - `POST /api/auth/register` — Register DJ or Artist account with TOS/venue license acknowledgment
+  - `POST /api/auth/login` — Login
+  - `GET /api/artist/profile/:userId` — Get artist profile
+  - `POST /api/artist/profile` — Create or update artist profile
+  - `GET /api/tracks` — Browse marketplace tracks (filterable by genre, licenseType, BPM range, key)
+  - `GET /api/tracks/artist/:artistId` — Artist's own tracks
+  - `POST /api/tracks` — Upload a new track (multipart/form-data)
+  - `GET /api/tracks/file/:filename` — Serve full audio file (authenticated DJs)
+  - `POST /api/play-events` — Record a track play event (royalty tracking)
+  - `GET /api/play-events/event/:eventId` — Get all play events for an event
+  - `GET /api/play-events/event/:eventId/csv` — Download cue sheet / play log as CSV
+  - `GET /api/artist/dashboard/:artistProfileId` — Artist dashboard data (plays, earnings, payouts)
+  - `GET /api/admin/royalties` — Admin royalty overview
+  - `POST /api/admin/royalties/calculate` — Calculate monthly royalties
+  - `POST /api/admin/royalties/:id/mark-paid` — Mark a payout as paid
+- **File Uploads**: Multer (tracks stored in `server/uploads/tracks/`)
 
-### Database
+### Database / Schema
 
-- **ORM**: Drizzle ORM configured for PostgreSQL
-- **Schema**: Basic `users` table in `shared/schema.ts`
-- **Current Storage**: In-memory storage
+- **ORM**: Drizzle ORM (configured for PostgreSQL)
+- **Current Storage**: In-memory (MemStorage)
+- **Schema** (`shared/schema.ts`):
+  - `users` — id, username, password, accountType (dj/artist), tosAcknowledgedAt, venueLicenseAcknowledgedAt
+  - `artistProfiles` — id, userId, stageName, bio, payoutInfoPlaceholder, createdAt
+  - `tracks` — id, artistId, title, artistName, genre, bpm, key, isrc, licenseType (free/royalty/promo), royaltyRate, fileUrl, previewUrl, playCount, available, createdAt
+  - `playEvents` — id, trackId, eventId, djUserId, trackTitle, artistName, label, isrc, licenseType, duration, royaltyAmount, playedAt, eventName, venueName
+  - `royaltyPayouts` — id, artistId, period, totalPlays, totalAmount, platformFee, netAmount, status, createdAt, paidAt
+
+### Music Rights & Compliance System
+
+- **Compliance Center** (`/compliance`): Plain-English explanation of PROs, venue licensing responsibilities, SoundExchange scope, Artist Marketplace licensing, attorney disclaimer
+- **Terms of Service** (`/terms`): Platform is NOT a PRO, no legal advice, artist upload ownership warranty, 15% platform fee structure, DJ/venue licensing responsibility
+- **DJ Signup**: Required venue license acknowledgment checkbox (ASCAP/BMI/SESAC) + TOS checkbox; timestamps logged to user record
+- **Play Log / Cue Sheet**: CSV export per event with PRO compliance notice header
+- **Artist Marketplace**: License types: Free, Royalty Per Play ($0.01–$1.00), Exclusive Promo (credit required)
+- **Royalty System**: Plays tracked → monthly calculation → 15% platform fee → 85% to artist → payout marked by admin
+- **Artist Dashboard**: Track catalog, plays per track, earnings, pending payout, payout history
 
 ### Build System
 
@@ -84,15 +110,13 @@ Preferred communication style: Simple, everyday language.
 ### Design System
 
 - Dark-first neon party theme
-- CSS custom properties for neon colors: `--neon-purple`, `--neon-blue`, `--neon-pink`, `--neon-green`, `--neon-orange`, `--neon-yellow`, `--neon-cyan`, `--neon-red`
+- CSS custom properties for neon colors
 - Glass-morphism panels with backdrop blur
-- Glow effects via CSS box-shadow
 - Custom animations: neon-pulse, gradient-shift, vinyl-spin, beat-pulse, eq-bounce, slide-in-up
-- Responsive layout — mobile-optimized Party Mode
 
 ## External Dependencies
 
 ### Key NPM Packages
 - drizzle-orm, drizzle-zod, express, multer, @tanstack/react-query, wouter, zod
 - shadcn/ui ecosystem (Radix UI, cva, clsx, tailwind-merge, lucide-react)
-- No external APIs currently integrated
+- OpenAI (GPT-4.1-mini for AI DJ features)

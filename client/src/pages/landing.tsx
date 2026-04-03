@@ -327,9 +327,30 @@ export default function Landing() {
 
         <footer className="text-center py-6 text-white/20 text-xs tracking-wider space-y-2">
           <div>DJ HYBRID &middot; Made for everyone at the party 🎉</div>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-4 flex-wrap">
             <a href="/pricing" className="text-white/30 hover:text-white/50 transition-colors" data-testid="link-pricing">⭐ Pricing</a>
+            <span className="text-white/10">·</span>
             <a href="/admin" className="text-white/30 hover:text-white/50 transition-colors" data-testid="link-admin">🔐 Admin</a>
+            <span className="text-white/10">·</span>
+            <button onClick={() => navigate("/compliance")} className="text-white/30 hover:text-white/60 transition-colors" data-testid="footer-link-compliance">
+              Compliance Center
+            </button>
+            <span className="text-white/10">·</span>
+            <button onClick={() => navigate("/terms")} className="text-white/30 hover:text-white/60 transition-colors" data-testid="footer-link-terms">
+              Terms of Service
+            </button>
+            <span className="text-white/10">·</span>
+            <button onClick={() => navigate("/marketplace")} className="text-white/30 hover:text-white/60 transition-colors" data-testid="footer-link-marketplace">
+              Music Marketplace
+            </button>
+            <span className="text-white/10">·</span>
+            <button onClick={() => navigate("/signup")} className="text-white/30 hover:text-white/60 transition-colors" data-testid="footer-link-signup">
+              Create Account
+            </button>
+            <span className="text-white/10">·</span>
+            <button onClick={() => navigate("/event-history")} className="text-white/30 hover:text-white/60 transition-colors" data-testid="footer-link-event-history">
+              Event Play Logs
+            </button>
           </div>
         </footer>
       </div>

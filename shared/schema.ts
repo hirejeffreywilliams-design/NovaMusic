@@ -7,16 +7,23 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  accountType: text("account_type").notNull().default("dj"),
+  tosAcknowledgedAt: text("tos_acknowledged_at"),
+  venueLicenseAcknowledgedAt: text("venue_license_acknowledged_at"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+  accountType: true,
+  tosAcknowledgedAt: true,
+  venueLicenseAcknowledgedAt: true,
 });
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+// Crowd engagement constants
 export const SUBSCRIPTION_TIERS = ["starter", "pro", "club"] as const;
 export type SubscriptionTier = typeof SUBSCRIPTION_TIERS[number];
 
@@ -31,6 +38,7 @@ export const DAY_PASS_PRICE = 4.99;
 export const PLATFORM_CUT = 0.15;
 export const DJ_CUT = 0.85;
 
+// Crowd engagement TypeScript interfaces
 export interface Event {
   id: string;
   code: string;
@@ -201,3 +209,77 @@ export interface Leaderboard {
   reactions: number;
   totalScore: number;
 }
+
+// Music rights Drizzle pgTable definitions
+export const artistProfiles = pgTable("artist_profiles", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  stageName: text("stage_name").notNull(),
+  bio: text("bio"),
+  payoutInfoPlaceholder: text("payout_info_placeholder"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertArtistProfileSchema = createInsertSchema(artistProfiles).omit({ id: true });
+export type InsertArtistProfile = z.infer<typeof insertArtistProfileSchema>;
+export type ArtistProfile = typeof artistProfiles.$inferSelect;
+
+export const tracks = pgTable("tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artistId: varchar("artist_id").notNull(),
+  title: text("title").notNull(),
+  artistName: text("artist_name").notNull(),
+  genre: text("genre"),
+  bpm: integer("bpm"),
+  key: text("key"),
+  isrc: text("isrc"),
+  licenseType: text("license_type").notNull(),
+  royaltyRate: real("royalty_rate"),
+  fileUrl: text("file_url").notNull(),
+  previewUrl: text("preview_url"),
+  playCount: integer("play_count").notNull().default(0),
+  available: boolean("available").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertTrackSchema = createInsertSchema(tracks).omit({ id: true, playCount: true });
+export type InsertTrack = z.infer<typeof insertTrackSchema>;
+export type Track = typeof tracks.$inferSelect;
+
+export const playEvents = pgTable("play_events", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  trackId: varchar("track_id"),
+  eventId: text("event_id"),
+  djUserId: text("dj_user_id"),
+  trackTitle: text("track_title").notNull(),
+  artistName: text("artist_name").notNull(),
+  label: text("label"),
+  isrc: text("isrc"),
+  licenseType: text("license_type"),
+  duration: integer("duration"),
+  royaltyAmount: real("royalty_amount"),
+  playedAt: text("played_at").notNull(),
+  eventName: text("event_name"),
+  venueName: text("venue_name"),
+});
+
+export const insertPlayEventSchema = createInsertSchema(playEvents).omit({ id: true });
+export type InsertPlayEvent = z.infer<typeof insertPlayEventSchema>;
+export type PlayEvent = typeof playEvents.$inferSelect;
+
+export const royaltyPayouts = pgTable("royalty_payouts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artistId: varchar("artist_id").notNull(),
+  period: text("period").notNull(),
+  totalPlays: integer("total_plays").notNull(),
+  totalAmount: real("total_amount").notNull(),
+  platformFee: real("platform_fee").notNull(),
+  netAmount: real("net_amount").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").notNull(),
+  paidAt: text("paid_at"),
+});
+
+export const insertRoyaltyPayoutSchema = createInsertSchema(royaltyPayouts).omit({ id: true });
+export type InsertRoyaltyPayout = z.infer<typeof insertRoyaltyPayoutSchema>;
+export type RoyaltyPayout = typeof royaltyPayouts.$inferSelect;

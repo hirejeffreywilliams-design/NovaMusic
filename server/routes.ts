@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import multer from "multer";
 import fs from "fs";
+import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import { registerAIDJRoutes } from "./ai-dj";
@@ -10,7 +11,29 @@ import { storage } from "./storage";
 import { PLATFORM_CUT, DJ_CUT, SUBSCRIPTION_PRICES, DAY_PASS_PRICE } from "@shared/schema";
 import OpenAI from "openai";
 
-const upload = multer({ dest: os.tmpdir() });
+const tmpUpload = multer({ dest: os.tmpdir() });
+
+const trackStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(process.cwd(), "server/uploads/tracks"));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${randomUUID()}${ext}`);
+  },
+});
+
+const trackUpload = multer({
+  storage: trackStorage,
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith("audio/") || /\.(mp3|wav|flac|ogg|m4a|aac|opus)$/i.test(file.originalname)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only audio files are accepted"));
+    }
+  },
+  limits: { fileSize: 100 * 1024 * 1024 },
+});
 
 const openai = new OpenAI({
   apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
@@ -68,7 +91,6 @@ async function checkCrowdEnergy(eventId: string) {
       const pending = requests.filter(r => r.status === "pending");
       const event = await storage.getEvent(eventId);
 
-      // Compute most-requested tracks from pending queue
       const requestFreq: Record<string, number> = {};
       pending.forEach(r => { requestFreq[r.trackTitle] = (requestFreq[r.trackTitle] || 0) + 1; });
       const topRequests = Object.entries(requestFreq)
@@ -149,12 +171,13 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   }, 60000);
 
   // --- Existing routes ---
-  app.post("/api/analyze", upload.single("file"), async (req, res) => {
+  app.post("/api/analyze", tmpUpload.single("file"), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     try {
       const filePath = req.file.path;
       const result = {
-        bpm: 0, key: "", sections: [], beatgrid: [], suggestedCuePoints: [], confidence: 0,
+        bpm: 0, key: "", sections: [] as { type: string; start: number; end: number }[],
+        beatgrid: [] as number[], suggestedCuePoints: [] as number[], confidence: 0,
         message: "Server-side analysis is a placeholder. Use the Analyze button on each deck for instant client-side BPM/key detection with full accuracy.",
       };
       try { fs.unlinkSync(filePath); } catch (_) {}
@@ -184,12 +207,11 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     });
   });
 
-  // --- Events ---
+  // --- Events (crowd engagement) ---
   app.post("/api/events", async (req, res) => {
     try {
       const { name, djId, djName, battleMode, deckADjName, deckBDjName } = req.body;
       if (!name || !djId || !djName) return res.status(400).json({ error: "name, djId, djName required" });
-      // Battle mode requires pro or club tier
       if (battleMode) {
         const allowed = await checkDJTier(djId, ["pro", "club"]);
         if (!allowed) return res.status(403).json({ error: "Battle Mode requires DJ Pro or DJ Club subscription" });
@@ -216,7 +238,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const existingEvent = await storage.getEvent(req.params.eventId);
       if (!existingEvent) return res.status(404).json({ error: "Event not found" });
-      // Mood board requires pro or club tier
       if (req.body.moodColor || req.body.moodKeyword) {
         const allowed = await checkDJTier(existingEvent.djId, ["pro", "club"]);
         if (!allowed) return res.status(403).json({ error: "Mood Board requires DJ Pro or DJ Club subscription" });
@@ -234,7 +255,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const event = await storage.endEvent(req.params.eventId);
       if (!event) return res.status(404).json({ error: "Event not found" });
-      // Create payout
       const tips = await storage.getEventTips(event.id);
       const shoutouts = await storage.getEventShoutouts(event.id);
       const requests = await storage.getEventSongRequests(event.id);
@@ -307,7 +327,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!event || event.status !== "active") return res.status(404).json({ error: "Event not found or ended" });
       const { crowdName, trackTitle, priorityPaid, priorityAmount } = req.body;
       if (!crowdName || !trackTitle) return res.status(400).json({ error: "crowdName and trackTitle required" });
-      // Priority requests require the DJ to be on pro or club tier
       if (priorityPaid && priorityAmount > 0) {
         const allowed = await checkDJTier(event.djId, ["pro", "club"]);
         if (!allowed) return res.status(403).json({ error: "Priority requests require DJ Pro or DJ Club subscription" });
@@ -357,7 +376,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     try {
       const { question, options } = req.body;
       if (!question || !options?.length) return res.status(400).json({ error: "question and options required" });
-      // Polls require pro or club tier
       const event = await storage.getEvent(req.params.eventId);
       if (event) {
         const allowed = await checkDJTier(event.djId, ["pro", "club"]);
@@ -452,7 +470,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Battle Mode - Second DJ joins by event code
+  // Battle Mode
   app.post("/api/events/:eventCode/battle-join", async (req, res) => {
     try {
       const event = await storage.getEventByCode(req.params.eventCode);
@@ -460,7 +478,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       if (!event.battleMode) return res.status(400).json({ error: "Event is not in battle mode" });
       const { djName } = req.body;
       if (!djName) return res.status(400).json({ error: "djName required" });
-      // Update deck B DJ name if not already set
       const updatedEvent = await storage.updateEvent(event.id, { deckBDjName: djName });
       broadcastToAll(event.id, { type: "battle_dj_joined", deck: "B", djName });
       return res.json({ event: updatedEvent, deck: "B", message: `${djName} joined battle as Deck B!` });
@@ -469,7 +486,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Battle Mode - Get current vote status and leader
   app.get("/api/events/:eventCode/battle-status", async (req, res) => {
     try {
       const event = await storage.getEventByCode(req.params.eventCode);
@@ -483,7 +499,6 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // Battle Mode Votes
   app.post("/api/events/:eventCode/battle-vote", async (req, res) => {
     try {
       const event = await storage.getEventByCode(req.params.eventCode);
@@ -530,8 +545,8 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.json({
       tiers: [
         { id: "starter", name: "Starter", price: 0, features: ["1 active event", "Basic crowd page", "Song requests"] },
-        { id: "pro", name: "DJ Pro", price: 14.99, features: ["Unlimited events", "Priority requests", "Polls", "Shoutouts", "Tips", "AI Crowd Coach", "Battle Mode", "Mood Board"] },
-        { id: "club", name: "DJ Club", price: 39.99, features: ["Everything in Pro", "Leaderboard badges", "Advanced analytics", "Priority support", "Custom branding"] },
+        { id: "pro", name: "DJ Pro", price: SUBSCRIPTION_PRICES.pro, features: ["Unlimited events", "Priority requests", "Polls", "Shoutouts", "Tips", "AI Crowd Coach", "Battle Mode", "Mood Board"] },
+        { id: "club", name: "DJ Club", price: SUBSCRIPTION_PRICES.club, features: ["Everything in Pro", "Leaderboard badges", "Advanced analytics", "Priority support", "Custom branding"] },
       ],
       dayPass: { price: DAY_PASS_PRICE, features: ["All Pro features for 24 hours"] },
     });
@@ -558,7 +573,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // --- Admin ---
+  // --- Admin (crowd engagement) ---
   const ADMIN_KEY = process.env.ADMIN_KEY || "admin";
 
   function requireAdmin(req: any, res: any, next: any) {
@@ -601,6 +616,317 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
+  // --- Auth (music rights) ---
+  app.post("/api/auth/register", async (req, res) => {
+    const { username, password, accountType, tosAcknowledged, venueLicenseAcknowledged } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: "Username and password are required" });
+    if (!["dj", "artist"].includes(accountType || "dj")) return res.status(400).json({ error: "Invalid account type" });
+    if (!tosAcknowledged) return res.status(400).json({ error: "You must agree to the Terms of Service" });
+    if (accountType !== "artist" && !venueLicenseAcknowledged) return res.status(400).json({ error: "DJs must acknowledge venue licensing responsibilities" });
+
+    const existing = await storage.getUserByUsername(username);
+    if (existing) return res.status(409).json({ error: "Username already taken" });
+
+    const now = new Date().toISOString();
+    const user = await storage.createUser({
+      username,
+      password,
+      accountType: accountType || "dj",
+      tosAcknowledgedAt: tosAcknowledged ? now : undefined,
+      venueLicenseAcknowledgedAt: (accountType !== "artist" && venueLicenseAcknowledged) ? now : undefined,
+    });
+
+    const { password: _pw, ...safeUser } = user;
+    return res.json({ user: safeUser });
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: "Username and password are required" });
+    const user = await storage.getUserByUsername(username);
+    if (!user || user.password !== password) return res.status(401).json({ error: "Invalid credentials" });
+    const { password: _pw, ...safeUser } = user;
+    return res.json({ user: safeUser });
+  });
+
+  // --- Artist Profiles ---
+  app.get("/api/artist/profile/:userId", async (req, res) => {
+    const profile = await storage.getArtistProfile(req.params.userId);
+    if (!profile) return res.status(404).json({ error: "Profile not found" });
+    return res.json(profile);
+  });
+
+  app.post("/api/artist/profile", async (req, res) => {
+    const { userId, stageName, bio, payoutInfoPlaceholder } = req.body || {};
+    if (!userId || !stageName) return res.status(400).json({ error: "userId and stageName are required" });
+    const existing = await storage.getArtistProfile(userId);
+    if (existing) {
+      const updated = await storage.updateArtistProfile(existing.id, { stageName, bio, payoutInfoPlaceholder });
+      return res.json(updated);
+    }
+    const profile = await storage.createArtistProfile({ userId, stageName, bio, payoutInfoPlaceholder, createdAt: new Date().toISOString() });
+    return res.json(profile);
+  });
+
+  app.put("/api/artist/profile/:id", async (req, res) => {
+    const { stageName, bio, payoutInfoPlaceholder } = req.body || {};
+    const updated = await storage.updateArtistProfile(req.params.id, { stageName, bio, payoutInfoPlaceholder });
+    if (!updated) return res.status(404).json({ error: "Profile not found" });
+    return res.json(updated);
+  });
+
+  // --- Tracks (Marketplace) ---
+  app.get("/api/tracks", async (req, res) => {
+    const { genre, licenseType, minBpm, maxBpm, key } = req.query as Record<string, string>;
+    const filters: any = {};
+    if (genre) filters.genre = genre;
+    if (licenseType) filters.licenseType = licenseType;
+    if (minBpm) filters.minBpm = parseInt(minBpm);
+    if (maxBpm) filters.maxBpm = parseInt(maxBpm);
+    if (key) filters.key = key;
+    const tracks = await storage.getTracks(Object.keys(filters).length > 0 ? filters : undefined);
+    return res.json(tracks);
+  });
+
+  app.get("/api/tracks/artist/:artistId", async (req, res) => {
+    const tracks = await storage.getTracksByArtist(req.params.artistId);
+    return res.json(tracks);
+  });
+
+  app.get("/api/tracks/file/:filename", async (req, res) => {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(process.cwd(), "server/uploads/tracks", filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "File not found" });
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Content-Disposition", `inline; filename="${filename}"`);
+    return res.sendFile(filePath);
+  });
+
+  app.get("/api/tracks/preview/:filename", async (req, res) => {
+    const filename = path.basename(req.params.filename);
+    const filePath = path.join(process.cwd(), "server/uploads/tracks", filename);
+    if (!fs.existsSync(filePath)) return res.status(404).json({ error: "Preview not found" });
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    return res.sendFile(filePath);
+  });
+
+  app.get("/api/tracks/:id", async (req, res) => {
+    const track = await storage.getTrackById(req.params.id);
+    if (!track) return res.status(404).json({ error: "Track not found" });
+    return res.json(track);
+  });
+
+  app.post("/api/tracks", trackUpload.single("file"), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "No audio file uploaded" });
+    const { artistId, title, artistName, genre, bpm, key, isrc, licenseType, royaltyRate } = req.body || {};
+    if (!artistId || !title || !artistName || !licenseType) {
+      return res.status(400).json({ error: "artistId, title, artistName, and licenseType are required" });
+    }
+    if (!["free", "royalty", "promo"].includes(licenseType)) {
+      return res.status(400).json({ error: "licenseType must be free, royalty, or promo" });
+    }
+    if (licenseType === "royalty" && (!royaltyRate || parseFloat(royaltyRate) < 0.01 || parseFloat(royaltyRate) > 1.00)) {
+      return res.status(400).json({ error: "royalty rate must be between $0.01 and $1.00 per play" });
+    }
+
+    const fileUrl = `/api/tracks/file/${req.file.filename}`;
+    const track = await storage.createTrack({
+      artistId,
+      title,
+      artistName,
+      genre: genre || null,
+      bpm: bpm ? parseInt(bpm) : null,
+      key: key || null,
+      isrc: isrc || null,
+      licenseType,
+      royaltyRate: royaltyRate ? parseFloat(royaltyRate) : null,
+      fileUrl,
+      previewUrl: fileUrl,
+      available: true,
+      createdAt: new Date().toISOString(),
+    });
+
+    return res.json(track);
+  });
+
+  app.put("/api/tracks/:id", async (req, res) => {
+    const { title, genre, bpm, key, isrc, licenseType, royaltyRate, available } = req.body || {};
+    const updated = await storage.updateTrack(req.params.id, { title, genre, bpm, key, isrc, licenseType, royaltyRate, available });
+    if (!updated) return res.status(404).json({ error: "Track not found" });
+    return res.json(updated);
+  });
+
+  app.delete("/api/tracks/:id", async (req, res) => {
+    await storage.deleteTrack(req.params.id);
+    return res.json({ ok: true });
+  });
+
+  // --- Play Events (Royalty Tracking) ---
+  app.post("/api/play-events", async (req, res) => {
+    const { trackId, eventId, djUserId, trackTitle, artistName, label, isrc, licenseType, duration, royaltyAmount, eventName, venueName } = req.body || {};
+    if (!trackTitle || !artistName) return res.status(400).json({ error: "trackTitle and artistName are required" });
+
+    const event = await storage.createPlayEvent({
+      trackId: trackId || null,
+      eventId: eventId || null,
+      djUserId: djUserId || null,
+      trackTitle,
+      artistName,
+      label: label || null,
+      isrc: isrc || null,
+      licenseType: licenseType || null,
+      duration: duration || null,
+      royaltyAmount: royaltyAmount || null,
+      playedAt: new Date().toISOString(),
+      eventName: eventName || null,
+      venueName: venueName || null,
+    });
+
+    return res.json(event);
+  });
+
+  app.get("/api/play-events/event/:eventId", async (req, res) => {
+    const events = await storage.getPlayEventsByEvent(req.params.eventId);
+    return res.json(events);
+  });
+
+  app.get("/api/play-events/event/:eventId/csv", async (req, res) => {
+    const events = await storage.getPlayEventsByEvent(req.params.eventId);
+    const header = [
+      "# PLAY LOG / CUE SHEET",
+      `# Event: ${req.params.eventId}`,
+      "# NOTICE: DJs and venues are responsible for obtaining proper performance licenses from ASCAP, BMI, or SESAC.",
+      "# Please share this log with your venue's licensing contact for PRO compliance.",
+      "# Consult a qualified music attorney for guidance specific to your situation.",
+      "",
+      "Track Title,Artist,Label,ISRC,Start Time,Duration (sec),License Type",
+    ].join("\n");
+
+    const rows = events.map((e) => {
+      const cols = [
+        `"${(e.trackTitle || "").replace(/"/g, '""')}"`,
+        `"${(e.artistName || "").replace(/"/g, '""')}"`,
+        `"${(e.label || "").replace(/"/g, '""')}"`,
+        `"${(e.isrc || "").replace(/"/g, '""')}"`,
+        `"${e.playedAt}"`,
+        `"${e.duration || ""}"`,
+        `"${e.licenseType || "own"}"`,
+      ];
+      return cols.join(",");
+    });
+
+    const csv = header + "\n" + rows.join("\n");
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", `attachment; filename="playlog-${req.params.eventId}.csv"`);
+    return res.send(csv);
+  });
+
+  // --- Artist Dashboard ---
+  app.get("/api/artist/dashboard/:artistProfileId", async (req, res) => {
+    const profile = await storage.getArtistProfileById(req.params.artistProfileId);
+    if (!profile) return res.status(404).json({ error: "Artist profile not found" });
+
+    const artistTracks = await storage.getTracksByArtist(req.params.artistProfileId);
+    const trackIds = artistTracks.map((t) => t.id);
+    const allPlayEvents = trackIds.length > 0 ? await storage.getPlayEventsByArtistTrack(trackIds) : [];
+
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
+    const monthEvents = allPlayEvents.filter((e) => e.playedAt.startsWith(currentMonth));
+    const totalEarningsThisMonth = monthEvents.reduce((sum, e) => sum + (e.royaltyAmount || 0), 0);
+    const platformFeeMonth = totalEarningsThisMonth * PLATFORM_CUT;
+    const netEarningsThisMonth = totalEarningsThisMonth - platformFeeMonth;
+
+    const trackStats = artistTracks.map((t) => {
+      const plays = allPlayEvents.filter((e) => e.trackId === t.id);
+      const earnings = plays.reduce((sum, e) => sum + (e.royaltyAmount || 0), 0);
+      return { track: t, totalPlays: plays.length, totalEarnings: earnings, netEarnings: earnings * DJ_CUT, plays };
+    });
+
+    const payouts = await storage.getRoyaltyPayouts(req.params.artistProfileId);
+
+    return res.json({ profile, trackStats, totalEarningsThisMonth, netEarningsThisMonth, pendingPayout: netEarningsThisMonth, payouts });
+  });
+
+  // --- Admin Royalties ---
+  app.get("/api/admin/royalties", async (req, res) => {
+    const allPayouts = await storage.getRoyaltyPayouts();
+    const allEvents = await storage.getAllPlayEvents();
+
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const monthEvents = allEvents.filter((e) => e.playedAt.startsWith(currentMonth));
+
+    const totalRoyaltiesThisMonth = monthEvents.reduce((sum, e) => sum + (e.royaltyAmount || 0), 0);
+    const platformFeeIncome = totalRoyaltiesThisMonth * PLATFORM_CUT;
+
+    const byArtist: Record<string, { artistName: string; plays: number; totalAmount: number; platformFee: number; netAmount: number }> = {};
+    for (const e of monthEvents) {
+      if (!e.trackId || !e.royaltyAmount) continue;
+      const track = await storage.getTrackById(e.trackId);
+      if (!track) continue;
+      if (!byArtist[track.artistId]) {
+        byArtist[track.artistId] = { artistName: e.artistName, plays: 0, totalAmount: 0, platformFee: 0, netAmount: 0 };
+      }
+      byArtist[track.artistId].plays += 1;
+      byArtist[track.artistId].totalAmount += e.royaltyAmount;
+      byArtist[track.artistId].platformFee += e.royaltyAmount * PLATFORM_CUT;
+      byArtist[track.artistId].netAmount += e.royaltyAmount * DJ_CUT;
+    }
+
+    return res.json({
+      totalRoyaltiesThisMonth,
+      platformFeeIncome,
+      byArtist,
+      pendingPayouts: allPayouts.filter((p) => p.status === "pending"),
+      allPayouts,
+    });
+  });
+
+  app.post("/api/admin/royalties/calculate", async (req, res) => {
+    const allEvents = await storage.getAllPlayEvents();
+    const now = new Date();
+    const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const monthEvents = allEvents.filter((e) => e.playedAt.startsWith(currentMonth));
+
+    const byArtist: Record<string, { plays: PlayEventItem[]; artistName: string }> = {};
+    for (const e of monthEvents) {
+      if (!e.trackId || !e.royaltyAmount) continue;
+      const track = await storage.getTrackById(e.trackId);
+      if (!track) continue;
+      if (!byArtist[track.artistId]) byArtist[track.artistId] = { plays: [], artistName: e.artistName };
+      byArtist[track.artistId].plays.push(e as any);
+    }
+
+    const payouts = [];
+    for (const [artistId, data] of Object.entries(byArtist)) {
+      const totalAmount = data.plays.reduce((s: number, e: any) => s + (e.royaltyAmount || 0), 0);
+      const platformFee = totalAmount * PLATFORM_CUT;
+      const netAmount = totalAmount - platformFee;
+      const payout = await storage.createRoyaltyPayout({
+        artistId,
+        period: currentMonth,
+        totalPlays: data.plays.length,
+        totalAmount,
+        platformFee,
+        netAmount,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+        paidAt: null,
+      });
+      payouts.push(payout);
+    }
+
+    return res.json({ payouts, message: `Calculated ${payouts.length} artist payout(s) for ${currentMonth}` });
+  });
+
+  app.post("/api/admin/royalties/:id/mark-paid", async (req, res) => {
+    const updated = await storage.markPayoutPaid(req.params.id);
+    if (!updated) return res.status(404).json({ error: "Payout not found" });
+    return res.json(updated);
+  });
+
   registerAIDJRoutes(app);
 
   return httpServer;
@@ -610,6 +936,13 @@ function generateEventCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
 }
+
+type PlayEventItem = {
+  id: string;
+  trackId: string | null;
+  royaltyAmount: number | null;
+  artistName: string;
+};
 
 function getHarmonicCompatibility(keyA?: string, keyB?: string): boolean {
   if (!keyA || !keyB) return false;

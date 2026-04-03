@@ -1,12 +1,30 @@
-import { type User, type InsertUser, type Event, type InsertEvent, type SongRequest, type InsertSongRequest, type Reaction, type InsertReaction, type Poll, type InsertPoll, type Shoutout, type InsertShoutout, type Tip, type InsertTip, type SetlistEntry, type InsertSetlistEntry, type Subscription, type InsertSubscription, type Payout, type BattleVote, PLATFORM_CUT, DJ_CUT } from "@shared/schema";
+import {
+  type User, type InsertUser,
+  type Event, type InsertEvent,
+  type SongRequest, type InsertSongRequest,
+  type Reaction, type InsertReaction,
+  type Poll, type InsertPoll,
+  type Shoutout, type InsertShoutout,
+  type Tip, type InsertTip,
+  type SetlistEntry, type InsertSetlistEntry,
+  type Subscription, type InsertSubscription,
+  type Payout,
+  type BattleVote,
+  PLATFORM_CUT, DJ_CUT,
+  type ArtistProfile, type InsertArtistProfile,
+  type Track, type InsertTrack,
+  type PlayEvent, type InsertPlayEvent,
+  type RoyaltyPayout, type InsertRoyaltyPayout,
+} from "@shared/schema";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserAcknowledgments(id: string, fields: Partial<Pick<User, "tosAcknowledgedAt" | "venueLicenseAcknowledgedAt">>): Promise<User | undefined>;
 
-  // Events
+  // Events (crowd engagement)
   createEvent(event: InsertEvent): Promise<Event>;
   getEvent(id: string): Promise<Event | undefined>;
   getEventByCode(code: string): Promise<Event | undefined>;
@@ -52,7 +70,7 @@ export interface IStorage {
   updateSubscriptionStatus(id: string, status: Subscription["status"]): Promise<Subscription | undefined>;
   listSubscriptions(): Promise<Subscription[]>;
 
-  // Payouts
+  // DJ Payouts (crowd engagement)
   createPayout(eventId: string, djId: string, djName: string, amount: number): Promise<Payout>;
   listPayouts(): Promise<Payout[]>;
   markPayoutProcessed(id: string): Promise<Payout | undefined>;
@@ -66,10 +84,39 @@ export interface IStorage {
   getTotalPlatformRevenue(): Promise<number>;
   getTopDJs(limit?: number): Promise<{ djId: string; djName: string; events: number; revenue: number }[]>;
   getSubscriptionsByTier(): Promise<Record<string, number>>;
+
+  // Artist Profiles (music rights)
+  getArtistProfile(userId: string): Promise<ArtistProfile | undefined>;
+  getArtistProfileById(id: string): Promise<ArtistProfile | undefined>;
+  createArtistProfile(profile: InsertArtistProfile): Promise<ArtistProfile>;
+  updateArtistProfile(id: string, fields: Partial<ArtistProfile>): Promise<ArtistProfile | undefined>;
+
+  // Tracks
+  getTracks(filters?: { genre?: string; licenseType?: string; minBpm?: number; maxBpm?: number; key?: string }): Promise<Track[]>;
+  getTrackById(id: string): Promise<Track | undefined>;
+  getTracksByArtist(artistId: string): Promise<Track[]>;
+  createTrack(track: InsertTrack): Promise<Track>;
+  updateTrack(id: string, fields: Partial<Track>): Promise<Track | undefined>;
+  deleteTrack(id: string): Promise<void>;
+  incrementPlayCount(id: string): Promise<void>;
+
+  // Play Events (royalty tracking)
+  createPlayEvent(event: InsertPlayEvent): Promise<PlayEvent>;
+  getPlayEventsByEvent(eventId: string): Promise<PlayEvent[]>;
+  getPlayEventsByArtistTrack(trackIds: string[]): Promise<PlayEvent[]>;
+  getAllPlayEvents(): Promise<PlayEvent[]>;
+
+  // Royalty Payouts
+  getRoyaltyPayouts(artistId?: string): Promise<RoyaltyPayout[]>;
+  getRoyaltyPayoutById(id: string): Promise<RoyaltyPayout | undefined>;
+  createRoyaltyPayout(payout: InsertRoyaltyPayout): Promise<RoyaltyPayout>;
+  markPayoutPaid(id: string): Promise<RoyaltyPayout | undefined>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User> = new Map();
+
+  // Crowd engagement maps
   private events: Map<string, Event> = new Map();
   private songRequests: Map<string, SongRequest> = new Map();
   private reactions: Reaction[] = [];
@@ -79,19 +126,43 @@ export class MemStorage implements IStorage {
   private tips: Map<string, Tip> = new Map();
   private setlistEntries: Map<string, SetlistEntry> = new Map();
   private subscriptions: Map<string, Subscription> = new Map();
-  private payouts: Map<string, Payout> = new Map();
+  private djPayouts: Map<string, Payout> = new Map();
   private battleVotes: BattleVote[] = [];
+
+  // Music rights maps
+  private artistProfiles: Map<string, ArtistProfile> = new Map();
+  private tracks: Map<string, Track> = new Map();
+  private playEvents: Map<string, PlayEvent> = new Map();
+  private royaltyPayouts: Map<string, RoyaltyPayout> = new Map();
 
   async getUser(id: string) { return this.users.get(id); }
   async getUserByUsername(username: string) {
     return Array.from(this.users.values()).find(u => u.username === username);
   }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = {
+      id,
+      username: insertUser.username,
+      password: insertUser.password,
+      accountType: insertUser.accountType ?? "dj",
+      tosAcknowledgedAt: insertUser.tosAcknowledgedAt ?? null,
+      venueLicenseAcknowledgedAt: insertUser.venueLicenseAcknowledgedAt ?? null,
+    };
     this.users.set(id, user);
     return user;
   }
+
+  async updateUserAcknowledgments(id: string, fields: Partial<Pick<User, "tosAcknowledgedAt" | "venueLicenseAcknowledgedAt">>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    const updated = { ...user, ...fields };
+    this.users.set(id, updated);
+    return updated;
+  }
+
+  // --- Crowd Engagement ---
 
   async createEvent(e: InsertEvent): Promise<Event> {
     const id = randomUUID();
@@ -378,24 +449,24 @@ export class MemStorage implements IStorage {
       createdAt: Date.now(),
       processedAt: null,
     };
-    this.payouts.set(id, payout);
+    this.djPayouts.set(id, payout);
     return payout;
   }
 
   async listPayouts() {
-    return Array.from(this.payouts.values()).sort((a, b) => b.createdAt - a.createdAt);
+    return Array.from(this.djPayouts.values()).sort((a, b) => b.createdAt - a.createdAt);
   }
 
   async markPayoutProcessed(id: string) {
-    const p = this.payouts.get(id);
+    const p = this.djPayouts.get(id);
     if (!p) return undefined;
     const updated = { ...p, status: "processed" as const, processedAt: Date.now() };
-    this.payouts.set(id, updated);
+    this.djPayouts.set(id, updated);
     return updated;
   }
 
   async getDJPayouts(djId: string) {
-    return Array.from(this.payouts.values()).filter(p => p.djId === djId);
+    return Array.from(this.djPayouts.values()).filter(p => p.djId === djId);
   }
 
   async createBattleVote(eventId: string, crowdName: string, deck: "A" | "B"): Promise<BattleVote> {
@@ -446,6 +517,155 @@ export class MemStorage implements IStorage {
       if (sub.status === "active") result[sub.tier] = (result[sub.tier] || 0) + 1;
     });
     return result;
+  }
+
+  // --- Music Rights ---
+
+  async getArtistProfile(userId: string): Promise<ArtistProfile | undefined> {
+    return Array.from(this.artistProfiles.values()).find((p) => p.userId === userId);
+  }
+
+  async getArtistProfileById(id: string): Promise<ArtistProfile | undefined> {
+    return this.artistProfiles.get(id);
+  }
+
+  async createArtistProfile(profile: InsertArtistProfile): Promise<ArtistProfile> {
+    const id = randomUUID();
+    const p: ArtistProfile = { id, ...profile, bio: profile.bio ?? null, payoutInfoPlaceholder: profile.payoutInfoPlaceholder ?? null };
+    this.artistProfiles.set(id, p);
+    return p;
+  }
+
+  async updateArtistProfile(id: string, fields: Partial<ArtistProfile>): Promise<ArtistProfile | undefined> {
+    const profile = this.artistProfiles.get(id);
+    if (!profile) return undefined;
+    const updated = { ...profile, ...fields };
+    this.artistProfiles.set(id, updated);
+    return updated;
+  }
+
+  async getTracks(filters?: { genre?: string; licenseType?: string; minBpm?: number; maxBpm?: number; key?: string }): Promise<Track[]> {
+    let tracks = Array.from(this.tracks.values()).filter((t) => t.available);
+    if (filters) {
+      if (filters.genre) tracks = tracks.filter((t) => t.genre?.toLowerCase() === filters.genre!.toLowerCase());
+      if (filters.licenseType) tracks = tracks.filter((t) => t.licenseType === filters.licenseType);
+      if (filters.minBpm != null) tracks = tracks.filter((t) => t.bpm != null && t.bpm >= filters.minBpm!);
+      if (filters.maxBpm != null) tracks = tracks.filter((t) => t.bpm != null && t.bpm <= filters.maxBpm!);
+      if (filters.key) tracks = tracks.filter((t) => t.key?.toLowerCase() === filters.key!.toLowerCase());
+    }
+    return tracks;
+  }
+
+  async getTrackById(id: string): Promise<Track | undefined> {
+    return this.tracks.get(id);
+  }
+
+  async getTracksByArtist(artistId: string): Promise<Track[]> {
+    return Array.from(this.tracks.values()).filter((t) => t.artistId === artistId);
+  }
+
+  async createTrack(track: InsertTrack): Promise<Track> {
+    const id = randomUUID();
+    const t: Track = {
+      id,
+      ...track,
+      playCount: 0,
+      genre: track.genre ?? null,
+      bpm: track.bpm ?? null,
+      key: track.key ?? null,
+      isrc: track.isrc ?? null,
+      royaltyRate: track.royaltyRate ?? null,
+      previewUrl: track.previewUrl ?? null,
+      available: track.available ?? true,
+    };
+    this.tracks.set(id, t);
+    return t;
+  }
+
+  async updateTrack(id: string, fields: Partial<Track>): Promise<Track | undefined> {
+    const track = this.tracks.get(id);
+    if (!track) return undefined;
+    const updated = { ...track, ...fields };
+    this.tracks.set(id, updated);
+    return updated;
+  }
+
+  async deleteTrack(id: string): Promise<void> {
+    this.tracks.delete(id);
+  }
+
+  async incrementPlayCount(id: string): Promise<void> {
+    const track = this.tracks.get(id);
+    if (track) {
+      this.tracks.set(id, { ...track, playCount: track.playCount + 1 });
+    }
+  }
+
+  async createPlayEvent(event: InsertPlayEvent): Promise<PlayEvent> {
+    const id = randomUUID();
+    const e: PlayEvent = {
+      id,
+      trackId: event.trackId ?? null,
+      eventId: event.eventId ?? null,
+      djUserId: event.djUserId ?? null,
+      trackTitle: event.trackTitle,
+      artistName: event.artistName,
+      label: event.label ?? null,
+      isrc: event.isrc ?? null,
+      licenseType: event.licenseType ?? null,
+      duration: event.duration ?? null,
+      royaltyAmount: event.royaltyAmount ?? null,
+      playedAt: event.playedAt,
+      eventName: event.eventName ?? null,
+      venueName: event.venueName ?? null,
+    };
+    this.playEvents.set(id, e);
+    if (event.trackId) {
+      await this.incrementPlayCount(event.trackId);
+    }
+    return e;
+  }
+
+  async getPlayEventsByEvent(eventId: string): Promise<PlayEvent[]> {
+    return Array.from(this.playEvents.values()).filter((e) => e.eventId === eventId);
+  }
+
+  async getPlayEventsByArtistTrack(trackIds: string[]): Promise<PlayEvent[]> {
+    return Array.from(this.playEvents.values()).filter((e) => e.trackId && trackIds.includes(e.trackId));
+  }
+
+  async getAllPlayEvents(): Promise<PlayEvent[]> {
+    return Array.from(this.playEvents.values());
+  }
+
+  async getRoyaltyPayouts(artistId?: string): Promise<RoyaltyPayout[]> {
+    const payouts = Array.from(this.royaltyPayouts.values());
+    if (artistId) return payouts.filter((p) => p.artistId === artistId);
+    return payouts;
+  }
+
+  async getRoyaltyPayoutById(id: string): Promise<RoyaltyPayout | undefined> {
+    return this.royaltyPayouts.get(id);
+  }
+
+  async createRoyaltyPayout(payout: InsertRoyaltyPayout): Promise<RoyaltyPayout> {
+    const id = randomUUID();
+    const p: RoyaltyPayout = {
+      id,
+      ...payout,
+      status: payout.status ?? "pending",
+      paidAt: payout.paidAt ?? null,
+    };
+    this.royaltyPayouts.set(id, p);
+    return p;
+  }
+
+  async markPayoutPaid(id: string): Promise<RoyaltyPayout | undefined> {
+    const payout = this.royaltyPayouts.get(id);
+    if (!payout) return undefined;
+    const updated = { ...payout, status: "paid", paidAt: new Date().toISOString() };
+    this.royaltyPayouts.set(id, updated);
+    return updated;
   }
 }
 

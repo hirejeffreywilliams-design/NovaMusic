@@ -12,6 +12,13 @@ import CrowdPage from "@/pages/crowd-page";
 import SetlistPage from "@/pages/setlist-page";
 import Pricing from "@/pages/pricing";
 import AdminDashboard from "@/pages/admin";
+import CompliancePage from "@/pages/compliance";
+import TermsPage from "@/pages/terms";
+import SignupPage from "@/pages/signup";
+import ArtistDashboard from "@/pages/artist-dashboard";
+import MarketplacePage from "@/pages/marketplace";
+import AdminRoyaltiesPage from "@/pages/admin-royalties";
+import EventHistoryPage from "@/pages/event-history";
 
 function Router() {
   return (
@@ -24,6 +31,13 @@ function Router() {
       <Route path="/setlist/:eventCode" component={SetlistPage} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/compliance" component={CompliancePage} />
+      <Route path="/terms" component={TermsPage} />
+      <Route path="/signup" component={SignupPage} />
+      <Route path="/artist/dashboard" component={ArtistDashboard} />
+      <Route path="/marketplace" component={MarketplacePage} />
+      <Route path="/admin/royalties" component={AdminRoyaltiesPage} />
+      <Route path="/event-history" component={EventHistoryPage} />
       <Route component={NotFound} />
     </Switch>
   );
