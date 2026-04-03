@@ -325,8 +325,12 @@ export default function Landing() {
           )}
         </main>
 
-        <footer className="text-center py-6 text-white/20 text-xs tracking-wider">
-          DJ HYBRID &middot; Made for everyone at the party 🎉
+        <footer className="text-center py-6 text-white/20 text-xs tracking-wider space-y-2">
+          <div>DJ HYBRID &middot; Made for everyone at the party 🎉</div>
+          <div className="flex items-center justify-center gap-4">
+            <a href="/pricing" className="text-white/30 hover:text-white/50 transition-colors" data-testid="link-pricing">⭐ Pricing</a>
+            <a href="/admin" className="text-white/30 hover:text-white/50 transition-colors" data-testid="link-admin">🔐 Admin</a>
+          </div>
         </footer>
       </div>
     </div>

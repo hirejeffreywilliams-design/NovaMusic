@@ -1,18 +1,113 @@
 import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
-import { useAudioEngine, DeckId } from "@/hooks/use-audio-engine";
+import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { DeckPanel } from "@/components/deck-panel";
 import { MixerPanel } from "@/components/mixer-panel";
 import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download } from "lucide-react";
+import { CrowdHub } from "@/components/crowd-hub";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
 import { AIDJAssistant } from "@/components/ai-dj-assistant";
+import { useMutation } from "@tanstack/react-query";
+import { getStableDjId } from "@/lib/utils";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "settings";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "settings";
+
+interface ActiveEvent {
+  id: string;
+  code: string;
+  name: string;
+  djId: string;
+  djName: string;
+}
+
+function EventSetup({ onEventCreated }: { onEventCreated: (event: ActiveEvent) => void }) {
+  const { toast } = useToast();
+  const [eventName, setEventName] = useState("");
+  const [djName, setDjName] = useState("");
+  const [battleMode, setBattleMode] = useState(false);
+  const [deckADjName, setDeckADjName] = useState("");
+  const [deckBDjName, setDeckBDjName] = useState("");
+
+  const createMutation = useMutation({
+    mutationFn: () => apiRequest("POST", "/api/events", {
+      name: eventName,
+      djId: getStableDjId(),
+      djName: djName || "DJ",
+      battleMode,
+      deckADjName: battleMode ? deckADjName : undefined,
+      deckBDjName: battleMode ? deckBDjName : undefined,
+    }).then(r => r.json()),
+    onSuccess: (data: any) => {
+      toast({ title: "Event created!", description: `Code: ${data.code}` });
+      onEventCreated(data as ActiveEvent);
+    },
+    onError: () => toast({ title: "Failed to create event", variant: "destructive" }),
+  });
+
+  return (
+    <div className="max-w-md mx-auto pt-6 space-y-4 px-4">
+      <div className="text-center space-y-1">
+        <div className="text-2xl">🎪</div>
+        <h2 className="text-base font-black text-white">Create a Live Event</h2>
+        <p className="text-xs text-white/40">Share the event code with your crowd</p>
+      </div>
+      <div className="space-y-3">
+        <input
+          value={eventName}
+          onChange={e => setEventName(e.target.value)}
+          placeholder="Event name (e.g. Friday Night Party)..."
+          className="w-full px-3 py-2.5 rounded-xl bg-white/8 border border-white/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#bf5af2]"
+          data-testid="input-event-name"
+        />
+        <input
+          value={djName}
+          onChange={e => setDjName(e.target.value)}
+          placeholder="Your DJ name..."
+          className="w-full px-3 py-2.5 rounded-xl bg-white/8 border border-white/15 text-white text-sm placeholder:text-white/25 focus:outline-none focus:border-[#bf5af2]"
+          data-testid="input-dj-name"
+        />
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" checked={battleMode} onChange={e => setBattleMode(e.target.checked)} className="w-4 h-4 rounded" data-testid="checkbox-battle-mode" />
+          <span className="text-xs text-white/60">⚔️ Enable DJ Battle Mode</span>
+        </label>
+        {battleMode && (
+          <div className="space-y-2 pl-6">
+            <input
+              value={deckADjName}
+              onChange={e => setDeckADjName(e.target.value)}
+              placeholder="Deck A DJ name..."
+              className="w-full px-3 py-2 rounded-xl bg-white/8 border border-white/15 text-white text-xs placeholder:text-white/25 focus:outline-none focus:border-[#ff2d78]"
+              data-testid="input-deck-a-dj-name"
+            />
+            <input
+              value={deckBDjName}
+              onChange={e => setDeckBDjName(e.target.value)}
+              placeholder="Deck B DJ name..."
+              className="w-full px-3 py-2 rounded-xl bg-white/8 border border-white/15 text-white text-xs placeholder:text-white/25 focus:outline-none focus:border-[#0af]"
+              data-testid="input-deck-b-dj-name"
+            />
+          </div>
+        )}
+        <button
+          onClick={() => createMutation.mutate()}
+          disabled={!eventName.trim() || createMutation.isPending}
+          className="w-full py-3 rounded-2xl text-sm font-black text-white disabled:opacity-40 transition-all"
+          style={{ background: "linear-gradient(135deg, #bf5af2, #ff2d78)", boxShadow: "0 0 25px rgba(191,90,242,0.3)" }}
+          data-testid="button-create-event"
+        >
+          {createMutation.isPending ? "Creating..." : "🚀 Create Event & Go Live"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function formatRecTime(secs: number): string {
   const m = Math.floor(secs / 60);
@@ -27,6 +122,7 @@ export default function DJConsole() {
   const [deckLayout, setDeckLayout] = useState<2 | 4>(2);
   const [fullscreen, setFullscreen] = useState(false);
   const [activeDeck, setActiveDeck] = useState<DeckId>("A");
+  const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -38,13 +134,14 @@ export default function DJConsole() {
     }
   }, []);
 
-  const tabs: { id: ViewTab; label: string; icon: any }[] = [
+  const tabs: { id: ViewTab; label: string; icon: any; badge?: number }[] = [
     { id: "decks", label: "Decks", icon: LayoutGrid },
     { id: "fx", label: "FX Rack", icon: Sliders },
     { id: "soundboard", label: "Pads", icon: Music },
     { id: "visualizer", label: "Visual", icon: Waves },
     { id: "mic", label: "Mic", icon: Mic2 },
     { id: "ai", label: "AI DJ", icon: Sparkles },
+    { id: "crowd", label: "Crowd Hub", icon: Users },
     { id: "settings", label: "Setup", icon: Settings },
   ];
 
@@ -56,24 +153,32 @@ export default function DJConsole() {
             <ArrowLeft className="w-5 h-5 text-white/60" />
           </button>
           <Disc3 className="w-6 h-6 text-[#bf5af2] animate-vinyl-spin" />
-          <span className="text-sm font-bold tracking-wider neon-text-purple" data-testid="text-console-title">DJ HYBRID PRO</span>
+          <div className="flex flex-col">
+            <span className="text-sm font-bold tracking-wider neon-text-purple" data-testid="text-console-title">DJ HYBRID PRO</span>
+            {activeEvent && (
+              <span className="text-[9px] text-[#30d158] font-bold">🔴 LIVE: {activeEvent.name} · {activeEvent.code}</span>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1 overflow-x-auto">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+              className={`relative flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-all whitespace-nowrap ${
                 activeTab === id
                   ? "bg-[#bf5af2] text-white shadow-lg"
                   : "text-white/50 hover:text-white/80 hover:bg-white/5"
-              }`}
+              } ${id === "crowd" && activeEvent ? "ring-1 ring-[#30d158]/50" : ""}`}
               style={activeTab === id ? { boxShadow: "0 0 15px rgba(191,90,242,0.4)" } : {}}
               data-testid={`tab-${id}`}
             >
               <Icon className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{label}</span>
+              <span className="hidden lg:inline">{label}</span>
+              {id === "crowd" && activeEvent && (
+                <span className="w-1.5 h-1.5 rounded-full bg-[#30d158] animate-pulse absolute -top-0.5 -right-0.5" />
+              )}
             </button>
           ))}
         </div>
@@ -119,6 +224,14 @@ export default function DJConsole() {
               </button>
             ))}
           </div>
+          <button
+            onClick={() => navigate("/pricing")}
+            className="hidden sm:flex items-center gap-1.5 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all"
+            style={{ background: "rgba(255,214,10,0.1)", color: "#ffd60a", border: "1px solid rgba(255,214,10,0.2)" }}
+            data-testid="button-upgrade"
+          >
+            ⭐ Upgrade
+          </button>
           <button
             onClick={() => setDeckLayout(deckLayout === 2 ? 4 : 2)}
             className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-all hidden sm:block"
@@ -187,6 +300,23 @@ export default function DJConsole() {
             />
           </div>
         )}
+
+        {activeTab === "crowd" && (
+          <div className="max-w-2xl mx-auto pt-2 pb-4 overflow-y-auto h-full">
+            {!activeEvent ? (
+              <EventSetup onEventCreated={ev => { setActiveEvent(ev); }} />
+            ) : (
+              <CrowdHub
+                eventId={activeEvent.id}
+                eventCode={activeEvent.code}
+                eventName={activeEvent.name}
+                djId={activeEvent.djId}
+                djName={activeEvent.djName}
+              />
+            )}
+          </div>
+        )}
+
         {activeTab === "settings" && (
           <div className="max-w-lg mx-auto pt-4 space-y-5 overflow-y-auto pb-4">
             <div>
@@ -196,6 +326,15 @@ export default function DJConsole() {
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🎵 Music Sources & Platforms</h3>
               <PlatformSync />
+            </div>
+            <div className="space-y-2">
+              <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🔗 Quick Links</h3>
+              <a href="/pricing" className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:bg-white/5" style={{ background: "rgba(255,214,10,0.06)", border: "1px solid rgba(255,214,10,0.15)" }}>
+                ⭐ Subscription Plans
+              </a>
+              <a href="/admin" className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold text-white transition-all hover:bg-white/5" style={{ background: "rgba(191,90,242,0.06)", border: "1px solid rgba(191,90,242,0.15)" }}>
+                🔐 Admin Dashboard
+              </a>
             </div>
           </div>
         )}

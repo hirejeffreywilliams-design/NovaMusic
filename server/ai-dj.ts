@@ -129,11 +129,11 @@ function buildOptimalOrder(tracks: TrackInfo[]): number[] {
 
   let best = 0;
   let bestDiff = Infinity;
-  for (const i of remaining) {
+  Array.from(remaining).forEach(i => {
     const bpm = tracks[i].bpm ?? 120;
     const d = Math.abs(bpm - 120);
     if (d < bestDiff) { bestDiff = d; best = i; }
-  }
+  });
   order.push(best);
   remaining.delete(best);
 
@@ -141,10 +141,10 @@ function buildOptimalOrder(tracks: TrackInfo[]): number[] {
     const current = tracks[order[order.length - 1]];
     let bestNext = -1;
     let bestScore = -1;
-    for (const i of remaining) {
+    Array.from(remaining).forEach(i => {
       const s = scoreMixTransition(current, tracks[i]);
       if (s > bestScore) { bestScore = s; bestNext = i; }
-    }
+    });
     order.push(bestNext);
     remaining.delete(bestNext);
   }

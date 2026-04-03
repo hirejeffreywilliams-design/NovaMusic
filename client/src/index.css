@@ -260,6 +260,19 @@
   border: 1px solid rgba(191, 90, 242, 0.2);
 }
 
+.glass-card {
+  background: rgba(20, 10, 40, 0.6);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+@keyframes pulse-fade {
+  0% { opacity: 0; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1.05); }
+  70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+
 .glass-panel-blue {
   background: rgba(10, 20, 40, 0.7);
   backdrop-filter: blur(20px);

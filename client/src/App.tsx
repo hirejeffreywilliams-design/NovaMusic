@@ -8,6 +8,10 @@ import Landing from "@/pages/landing";
 import DJConsole from "@/pages/dj-console";
 import PartyMode from "@/pages/party-mode";
 import AIDJPage from "@/pages/ai-dj";
+import CrowdPage from "@/pages/crowd-page";
+import SetlistPage from "@/pages/setlist-page";
+import Pricing from "@/pages/pricing";
+import AdminDashboard from "@/pages/admin";
 
 function Router() {
   return (
@@ -16,6 +20,10 @@ function Router() {
       <Route path="/ai-dj" component={AIDJPage} />
       <Route path="/console" component={DJConsole} />
       <Route path="/party" component={PartyMode} />
+      <Route path="/party/:eventCode" component={CrowdPage} />
+      <Route path="/setlist/:eventCode" component={SetlistPage} />
+      <Route path="/pricing" component={Pricing} />
+      <Route path="/admin" component={AdminDashboard} />
       <Route component={NotFound} />
     </Switch>
   );
