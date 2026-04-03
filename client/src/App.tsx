@@ -22,6 +22,7 @@ import EventHistoryPage from "@/pages/event-history";
 import PrivacyPolicy from "@/pages/privacy";
 import DmcaPolicy from "@/pages/dmca";
 import { CookieBanner } from "@/components/cookie-banner";
+import SetupGuide from "@/pages/setup-guide";
 
 function Router() {
   return (
@@ -43,6 +44,7 @@ function Router() {
       <Route path="/event-history" component={EventHistoryPage} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/dmca" component={DmcaPolicy} />
+      <Route path="/setup-guide" component={SetupGuide} />
       <Route component={NotFound} />
     </Switch>
   );

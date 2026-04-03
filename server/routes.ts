@@ -7,6 +7,7 @@ import path from "path";
 import os from "os";
 import { randomUUID } from "crypto";
 import { registerAIDJRoutes } from "./ai-dj";
+import { registerPlatformRoutes } from "./platform-routes";
 import { storage } from "./storage";
 import { PLATFORM_CUT, DJ_CUT, SUBSCRIPTION_PRICES, DAY_PASS_PRICE } from "@shared/schema";
 import OpenAI from "openai";
@@ -951,6 +952,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   });
 
   registerAIDJRoutes(app);
+  registerPlatformRoutes(app);
 
   return httpServer;
 }

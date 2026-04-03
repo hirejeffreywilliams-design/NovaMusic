@@ -10,7 +10,8 @@ import { CrowdHub } from "@/components/crowd-hub";
 import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
-import { PlatformSync } from "@/components/platform-sync";
+import { PlatformLibraryBrowser } from "@/components/platform-library-browser";
+import type { PlatformTrack } from "@/components/platform-library-browser";
 import { AIDJAssistant } from "@/components/ai-dj-assistant";
 import { useMutation } from "@tanstack/react-query";
 import { getStableDjId } from "@/lib/utils";
@@ -409,8 +410,14 @@ export default function DJConsole() {
               <AudioOutput audioCtxGetter={engine.getCtx} />
             </div>
             <div>
-              <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🎵 Music Sources & Platforms</h3>
-              <PlatformSync />
+              <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🎵 Music Library & Platforms</h3>
+              <PlatformLibraryBrowser
+                activeDeck={activeDeck}
+                onAddToQueue={(_track: PlatformTrack) => {
+                  // Platform tracks are handled by their native embedded players.
+                  // The toast is shown inside PlatformLibraryBrowser itself.
+                }}
+              />
             </div>
             <div className="space-y-2">
               <h3 className="text-xs font-black uppercase tracking-widest text-white/40 mb-3">🔗 Quick Links</h3>
