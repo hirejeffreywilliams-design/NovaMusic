@@ -19,6 +19,9 @@ import ArtistDashboard from "@/pages/artist-dashboard";
 import MarketplacePage from "@/pages/marketplace";
 import AdminRoyaltiesPage from "@/pages/admin-royalties";
 import EventHistoryPage from "@/pages/event-history";
+import PrivacyPolicy from "@/pages/privacy";
+import DmcaPolicy from "@/pages/dmca";
+import { CookieBanner } from "@/components/cookie-banner";
 
 function Router() {
   return (
@@ -38,6 +41,8 @@ function Router() {
       <Route path="/marketplace" component={MarketplacePage} />
       <Route path="/admin/royalties" component={AdminRoyaltiesPage} />
       <Route path="/event-history" component={EventHistoryPage} />
+      <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/dmca" component={DmcaPolicy} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -49,6 +54,7 @@ function App() {
       <TooltipProvider>
         <Toaster />
         <Router />
+        <CookieBanner />
       </TooltipProvider>
     </QueryClientProvider>
   );

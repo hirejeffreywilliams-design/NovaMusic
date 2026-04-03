@@ -5,6 +5,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { getStableDjId } from "@/lib/utils";
 import { ArrowLeft, Check, Zap, Star, Crown, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AppFooter } from "@/components/app-footer";
 
 const TIERS = [
   {
@@ -199,12 +200,19 @@ export default function Pricing() {
           </div>
         </div>
 
-        {/* Features note */}
-        <div className="mt-6 text-center text-xs text-white/25 space-y-1">
-          <p>Platform takes 15% of all crowd micropayments (tips, priority requests, shoutouts). DJs keep 85%.</p>
-          <p>All payments are simulated — no real charges are made.</p>
+        {/* Legal Disclosures */}
+        <div className="mt-6 rounded-2xl px-5 py-4 space-y-2" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }} data-testid="notice-subscription-legal">
+          <div className="text-[10px] font-black uppercase tracking-wider text-white/30 mb-2">Subscription Terms</div>
+          <p className="text-[11px] text-white/40 leading-relaxed">
+            Subscriptions auto-renew monthly until cancelled. Cancel anytime from your account settings. Prices are subject to change with 30 days notice to current subscribers. Day passes are <strong className="text-white/55">non-refundable</strong> once an event has been started. Platform takes 15% of all crowd micropayments (tips, priority requests, shoutouts); DJs keep 85%.
+          </p>
+        </div>
+
+        <div className="mt-4 text-center text-xs text-white/20">
+          All payments are simulated — no real charges are made in this demo.
         </div>
       </div>
+      <AppFooter />
     </div>
   );
 }

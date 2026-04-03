@@ -300,6 +300,7 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
           <div className="flex-1">
             <div className="text-[10px] font-black text-[#ffd60a] uppercase tracking-wider mb-1">AI Crowd Coach Alert</div>
             <p className="text-xs text-white/70" data-testid="text-ai-coach">{aiCoachAlert}</p>
+            <p className="text-[9px] italic text-white/30 mt-1">AI suggestions are for guidance only. Apply your own professional judgment.</p>
           </div>
           <button onClick={() => setAiCoachAlert(null)} className="text-white/30 hover:text-white/60 shrink-0">
             <X className="w-3.5 h-3.5" />

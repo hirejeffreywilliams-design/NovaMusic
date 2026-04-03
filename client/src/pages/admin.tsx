@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { ArrowLeft, DollarSign, Users, Zap, TrendingUp, CheckCircle, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { AppFooter } from "@/components/app-footer";
 
 interface AdminStats {
   activeEvents: number;
@@ -195,6 +196,9 @@ export default function AdminDashboard() {
                 <DollarSign className="w-4 h-4 text-[#30d158]" />
                 <div className="text-[10px] font-black uppercase tracking-wider text-white/40">Payout Queue</div>
               </div>
+              <div className="rounded-xl px-3 py-2.5 text-[10px] text-white/40 leading-relaxed" style={{ background: "rgba(255,149,0,0.06)", border: "1px solid rgba(255,149,0,0.12)" }} data-testid="notice-payout-disclaimer">
+                ℹ️ Royalty payouts are processed manually on a monthly basis. The platform is not liable for delays caused by incorrect payout information provided by the artist.
+              </div>
               {stats.allPayouts.length === 0 ? (
                 <div className="text-center text-white/25 text-sm py-4">No payouts yet.</div>
               ) : (
@@ -230,6 +234,7 @@ export default function AdminDashboard() {
           </>
         )}
       </div>
+      <AppFooter />
     </div>
   );
 }

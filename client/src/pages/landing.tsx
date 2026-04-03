@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { Music, Headphones, PartyPopper, Disc3, Mic2, Radio, Zap, Volume2, Sparkles, ChevronDown, Bot } from "lucide-react";
+import { AppFooter } from "@/components/app-footer";
 
 function ParticleField() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -325,7 +326,7 @@ export default function Landing() {
           )}
         </main>
 
-        <footer className="text-center py-6 text-white/20 text-xs tracking-wider space-y-2">
+        <footer className="text-center py-4 text-white/20 text-xs tracking-wider space-y-2">
           <div>DJ HYBRID &middot; Made for everyone at the party 🎉</div>
           <div className="flex items-center justify-center gap-4 flex-wrap">
             <a href="/pricing" className="text-white/30 hover:text-white/50 transition-colors" data-testid="link-pricing">⭐ Pricing</a>
@@ -354,6 +355,7 @@ export default function Landing() {
           </div>
         </footer>
       </div>
+      <AppFooter />
     </div>
   );
 }

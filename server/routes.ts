@@ -573,7 +573,30 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     }
   });
 
-  // --- Admin (crowd engagement) ---
+  // --- DMCA Notices ---
+  app.post("/api/dmca/notices", async (req, res) => {
+    try {
+      const { reporterName, contact, claimedWork, infringingUrl } = req.body;
+      if (!reporterName || !contact || !claimedWork || !infringingUrl) {
+        return res.status(400).json({ error: "All fields are required" });
+      }
+      const notice = await storage.createDmcaNotice({ reporterName, contact, claimedWork, infringingUrl });
+      return res.json(notice);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.get("/api/dmca/notices", async (req, res) => {
+    try {
+      const notices = await storage.listDmcaNotices();
+      return res.json(notices);
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Admin ---
   const ADMIN_KEY = process.env.ADMIN_KEY || "admin";
 
   function requireAdmin(req: any, res: any, next: any) {

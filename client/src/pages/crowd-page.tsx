@@ -309,6 +309,15 @@ export default function CrowdPage() {
           </div>
         </div>
 
+        {/* Paid Actions Disclaimer */}
+        <div
+          className="rounded-xl px-3 py-2.5 text-[10px] text-white/50 leading-relaxed"
+          style={{ background: "rgba(255,214,10,0.06)", border: "1px solid rgba(255,214,10,0.12)" }}
+          data-testid="notice-paid-actions"
+        >
+          ℹ️ Priority requests, shoutouts, and tips are <strong className="text-white/70">non-refundable</strong>. Your display name is visible to the DJ and other participants.
+        </div>
+
         {/* Song Request */}
         <div className="glass-card rounded-2xl p-4 space-y-3">
           <div className="text-[10px] font-black uppercase tracking-wider text-[#bf5af2]">🎵 Request a Song</div>

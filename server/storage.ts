@@ -18,6 +18,16 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
+interface DmcaNotice {
+  id: string;
+  reporterName: string;
+  contact: string;
+  claimedWork: string;
+  infringingUrl: string;
+  status: "pending" | "resolved" | "rejected";
+  createdAt: number;
+}
+
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -79,6 +89,10 @@ export interface IStorage {
   // Battle Votes
   createBattleVote(eventId: string, crowdName: string, deck: "A" | "B"): Promise<BattleVote>;
   getEventBattleVotes(eventId: string): Promise<BattleVote[]>;
+
+  // DMCA Notices
+  createDmcaNotice(notice: Omit<DmcaNotice, "id" | "status" | "createdAt">): Promise<DmcaNotice>;
+  listDmcaNotices(): Promise<DmcaNotice[]>;
 
   // Admin stats
   getTotalPlatformRevenue(): Promise<number>;
@@ -467,6 +481,23 @@ export class MemStorage implements IStorage {
 
   async getDJPayouts(djId: string) {
     return Array.from(this.djPayouts.values()).filter(p => p.djId === djId);
+  }
+
+  private dmcaNotices: DmcaNotice[] = [];
+
+  async createDmcaNotice(notice: Omit<DmcaNotice, "id" | "status" | "createdAt">): Promise<DmcaNotice> {
+    const dmcaNotice: DmcaNotice = {
+      id: randomUUID(),
+      ...notice,
+      status: "pending",
+      createdAt: Date.now(),
+    };
+    this.dmcaNotices.push(dmcaNotice);
+    return dmcaNotice;
+  }
+
+  async listDmcaNotices(): Promise<DmcaNotice[]> {
+    return [...this.dmcaNotices].sort((a, b) => b.createdAt - a.createdAt);
   }
 
   async createBattleVote(eventId: string, crowdName: string, deck: "A" | "B"): Promise<BattleVote> {

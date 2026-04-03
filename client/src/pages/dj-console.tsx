@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAudioEngine } from "@/hooks/use-audio-engine";
 import { DeckPanel } from "@/components/deck-panel";
@@ -7,7 +7,7 @@ import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
 import { CrowdHub } from "@/components/crowd-hub";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
@@ -16,6 +16,41 @@ import { useMutation } from "@tanstack/react-query";
 import { getStableDjId } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+
+const PERF_BANNER_KEY = "dj_hybrid_perf_banner_dismissed";
+
+function PerformanceRightsBanner() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const dismissed = sessionStorage.getItem(PERF_BANNER_KEY);
+    if (!dismissed) setVisible(true);
+  }, []);
+
+  const dismiss = () => {
+    sessionStorage.setItem(PERF_BANNER_KEY, "1");
+    setVisible(false);
+  };
+
+  if (!visible) return null;
+
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-2 text-[11px] text-white/60 border-b border-[#ffd60a]/15"
+      style={{ background: "rgba(255,214,10,0.06)" }}
+      data-testid="banner-performance-rights"
+    >
+      <span className="shrink-0">⚖️</span>
+      <span className="flex-1">
+        You are responsible for ensuring your venue holds the appropriate public performance licenses (ASCAP/BMI/SESAC).{" "}
+        <a href="/compliance" className="text-[#ffd60a] hover:underline" data-testid="link-perf-banner-compliance">Learn more.</a>
+      </span>
+      <button onClick={dismiss} className="shrink-0 p-1 rounded hover:bg-white/10 transition-colors" data-testid="button-dismiss-perf-banner">
+        <X className="w-3.5 h-3.5 text-white/40" />
+      </button>
+    </div>
+  );
+}
 
 type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "marketplace" | "settings";
 
@@ -34,6 +69,7 @@ function EventSetup({ onEventCreated }: { onEventCreated: (event: ActiveEvent) =
   const [battleMode, setBattleMode] = useState(false);
   const [deckADjName, setDeckADjName] = useState("");
   const [deckBDjName, setDeckBDjName] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   const createMutation = useMutation({
     mutationFn: () => apiRequest("POST", "/api/events", {
@@ -95,9 +131,25 @@ function EventSetup({ onEventCreated }: { onEventCreated: (event: ActiveEvent) =
             />
           </div>
         )}
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            id="terms-agreement"
+            checked={agreedToTerms}
+            onChange={e => setAgreedToTerms(e.target.checked)}
+            className="w-4 h-4 rounded mt-0.5 shrink-0"
+            data-testid="checkbox-terms-agreement"
+          />
+          <span className="text-[10px] text-white/45 leading-relaxed">
+            I am at least 13 years old and I agree to DJ Hybrid's{" "}
+            <a href="/terms" className="text-[#bf5af2] hover:underline" target="_blank">Terms of Service</a>{" "}
+            and{" "}
+            <a href="/privacy" className="text-[#bf5af2] hover:underline" target="_blank">Privacy Policy</a>.
+          </span>
+        </label>
         <button
           onClick={() => createMutation.mutate()}
-          disabled={!eventName.trim() || createMutation.isPending}
+          disabled={!eventName.trim() || createMutation.isPending || !agreedToTerms}
           className="w-full py-3 rounded-2xl text-sm font-black text-white disabled:opacity-40 transition-all"
           style={{ background: "linear-gradient(135deg, #bf5af2, #ff2d78)", boxShadow: "0 0 25px rgba(191,90,242,0.3)" }}
           data-testid="button-create-event"
@@ -148,6 +200,7 @@ export default function DJConsole() {
 
   return (
     <div className="min-h-screen bg-[#0a0519] flex flex-col">
+      <PerformanceRightsBanner />
       <header className="flex items-center justify-between px-4 py-2 border-b border-[#bf5af2]/10 bg-[#0a0519]/95 backdrop-blur-xl z-50">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/")} className="p-2 rounded-lg hover:bg-white/5 transition-colors" data-testid="button-back-home">

@@ -509,6 +509,10 @@ export function AIDJAssistant({ deckA, deckB, queue, engine, compact = false }: 
           </div>
         )}
       </div>
+
+      <p className="text-[9px] text-white/25 italic text-center px-2" data-testid="text-ai-disclaimer">
+        AI suggestions are generated automatically and are for guidance only. Always apply your own professional judgment.
+      </p>
     </div>
   );
 }

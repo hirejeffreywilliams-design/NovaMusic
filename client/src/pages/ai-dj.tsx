@@ -469,6 +469,7 @@ export default function AIDJPage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [isBuilding, setIsBuilding] = useState(false);
+  const [ownershipConfirmed, setOwnershipConfirmed] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -1101,6 +1102,26 @@ export default function AIDJPage() {
                     <div className="text-[10px] text-white/35">{desc}</div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-8 max-w-lg w-full rounded-2xl px-4 py-3 space-y-2" style={{ background: "rgba(255,69,58,0.06)", border: "1px solid rgba(255,69,58,0.15)" }} data-testid="notice-upload-ownership">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={ownershipConfirmed}
+                    onChange={e => setOwnershipConfirmed(e.target.checked)}
+                    className="w-4 h-4 rounded mt-0.5 shrink-0"
+                    data-testid="checkbox-ownership-confirm"
+                  />
+                  <span className="text-[10px] text-white/50 leading-relaxed">
+                    I confirm that I own or hold all necessary rights to this recording and composition, and that uploading it does not infringe any third party's rights.
+                  </span>
+                </label>
+                <p className="text-[9px] text-white/30 pl-6 leading-relaxed">
+                  Uploading music you don't own is a violation of our{" "}
+                  <a href="/dmca" className="text-[#ff453a] hover:underline">DMCA Policy</a>{" "}
+                  and may result in account termination.
+                </p>
               </div>
             </div>
           )}
