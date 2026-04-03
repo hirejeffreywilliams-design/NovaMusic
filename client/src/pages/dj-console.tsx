@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { useLocation } from "wouter";
 import { useAudioEngine, DeckId } from "@/hooks/use-audio-engine";
 import { DeckPanel } from "@/components/deck-panel";
@@ -6,7 +6,7 @@ import { MixerPanel } from "@/components/mixer-panel";
 import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
@@ -14,12 +14,19 @@ import { AIDJAssistant } from "@/components/ai-dj-assistant";
 
 type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "settings";
 
+function formatRecTime(secs: number): string {
+  const m = Math.floor(secs / 60);
+  const s = Math.floor(secs % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
 export default function DJConsole() {
   const [, navigate] = useLocation();
   const engine = useAudioEngine();
   const [activeTab, setActiveTab] = useState<ViewTab>("decks");
   const [deckLayout, setDeckLayout] = useState<2 | 4>(2);
   const [fullscreen, setFullscreen] = useState(false);
+  const [activeDeck, setActiveDeck] = useState<DeckId>("A");
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -72,9 +79,49 @@ export default function DJConsole() {
         </div>
 
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-white/5 rounded-lg px-2 py-1 border border-white/10">
+            <button
+              onClick={() => engine.isRecording ? engine.stopRecording() : engine.startRecording()}
+              className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                engine.isRecording ? "bg-[#ff453a] text-white" : "text-[#ff453a] hover:bg-[#ff453a]/20"
+              }`}
+              style={engine.isRecording ? { animation: "pulse 1.5s infinite", boxShadow: "0 0 12px rgba(255,69,58,0.5)" } : {}}
+              data-testid="button-rec-header"
+            >
+              <Circle className={`w-3 h-3 ${engine.isRecording ? "text-white" : "text-[#ff453a]"}`} fill={engine.isRecording ? "white" : "none"} />
+              <span>{engine.isRecording ? formatRecTime(engine.recordingElapsed || 0) : "REC"}</span>
+            </button>
+            {engine.recordingUrl && (
+              <a
+                href={engine.recordingUrl}
+                download="dj-session.webm"
+                className="p-1 rounded-md hover:bg-white/10 transition-all"
+                title="Download Recording"
+                data-testid="link-download-recording-header"
+              >
+                <Download className="w-3 h-3 text-white/40" />
+              </a>
+            )}
+          </div>
+          <div className="flex items-center gap-1 bg-white/5 rounded-lg px-2 py-1 border border-white/10">
+            <span className="text-[9px] text-white/30">Active</span>
+            {(["A", "B"] as DeckId[]).map(id => (
+              <button
+                key={id}
+                onClick={() => setActiveDeck(id)}
+                className={`w-5 h-5 rounded-full text-[9px] font-black transition-all ${
+                  activeDeck === id ? "bg-[#bf5af2] text-white" : "bg-white/10 text-white/40 hover:bg-white/20"
+                }`}
+                style={activeDeck === id ? { boxShadow: "0 0 8px rgba(191,90,242,0.5)" } : {}}
+                data-testid={`button-active-deck-${id}`}
+              >
+                {id}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => setDeckLayout(deckLayout === 2 ? 4 : 2)}
-            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-all"
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-white/5 text-white/50 hover:text-white hover:bg-white/10 transition-all hidden sm:block"
             data-testid="button-toggle-deck-layout"
           >
             {deckLayout === 2 ? "4 Decks" : "2 Decks"}
@@ -106,8 +153,14 @@ export default function DJConsole() {
         {activeTab === "soundboard" && <SoundboardPanel engine={engine} />}
         {activeTab === "visualizer" && <VisualizerPanel engine={engine} />}
         {activeTab === "mic" && (
-          <div className="max-w-md mx-auto pt-4">
-            <Microphone audioCtxGetter={engine.getCtx} masterNode={null} />
+          <div className="max-w-lg mx-auto pt-4 overflow-y-auto pb-4">
+            <Microphone
+              audioCtxGetter={engine.getCtx}
+              getMasterNode={engine.getMasterInputNode}
+              onDuckRequest={engine.setTalkoverDuck}
+              engine={engine}
+              activeDeck={activeDeck}
+            />
           </div>
         )}
         {activeTab === "ai" && (
@@ -116,16 +169,16 @@ export default function DJConsole() {
               deckA={{
                 fileName: engine.decks.A.fileName,
                 isPlaying: engine.decks.A.isPlaying,
-                bpm: undefined,
-                key: undefined,
+                bpm: engine.decks.A.bpm || undefined,
+                key: engine.decks.A.detectedKey || undefined,
                 duration: engine.decks.A.duration,
                 buffer: engine.decks.A.buffer,
               }}
               deckB={{
                 fileName: engine.decks.B.fileName,
                 isPlaying: engine.decks.B.isPlaying,
-                bpm: undefined,
-                key: undefined,
+                bpm: engine.decks.B.bpm || undefined,
+                key: engine.decks.B.detectedKey || undefined,
                 duration: engine.decks.B.duration,
                 buffer: engine.decks.B.buffer,
               }}

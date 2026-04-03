@@ -66,7 +66,12 @@ export interface DeckState {
   stems: StemsState;
   stemsEnabled: boolean;
   transitionEffect: string | null;
+  bpm: number;
+  detectedKey: string;
+  camelotCode: string;
 }
+
+export type CrossfaderCurve = "smooth" | "club" | "cut";
 
 export interface MasteringState {
   compressorThreshold: number;
@@ -113,6 +118,9 @@ const defaultDeckState: DeckState = {
   stems: { ...defaultStems },
   stemsEnabled: false,
   transitionEffect: null,
+  bpm: 0,
+  detectedKey: "",
+  camelotCode: "",
 };
 
 const defaultMastering: MasteringState = {
@@ -259,11 +267,17 @@ function makeDefaultDecks(): Record<DeckId, DeckState> {
 export function useAudioEngine() {
   const ctxRef = useRef<AudioContext | null>(null);
   const masterRef = useRef<GainNode | null>(null);
+  const talkoverGainRef = useRef<GainNode | null>(null);
+  const masterAnalyzerRef = useRef<AnalyserNode | null>(null);
   const compressorRef = useRef<DynamicsCompressorNode | null>(null);
   const masterGainRef = useRef<GainNode | null>(null);
   const destRef = useRef<MediaStreamAudioDestinationNode | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recordingStartRef = useRef<number>(0);
+  const [recordingElapsed, setRecordingElapsed] = useState(0);
+  const recordingTimerRef = useRef<number | null>(null);
+  const tapTimesRef = useRef<Record<DeckId, number[]>>({ A: [], B: [], C: [], D: [] });
 
   const sourceRefs = useRef<Record<DeckId, AudioBufferSourceNode | null>>({ A: null, B: null, C: null, D: null });
   const nodesRef = useRef<Record<DeckId, DeckNodes | null>>({ A: null, B: null, C: null, D: null });
@@ -275,6 +289,9 @@ export function useAudioEngine() {
   const [decks, setDecks] = useState<Record<DeckId, DeckState>>(makeDefaultDecks);
   const [crossfadeAB, setCrossfadeAB] = useState(0.5);
   const [crossfadeCD, setCrossfadeCD] = useState(0.5);
+  const [crossfaderCurveAB, setCrossfaderCurveAB] = useState<CrossfaderCurve>("smooth");
+  const [crossfaderCurveCD, setCrossfaderCurveCD] = useState<CrossfaderCurve>("smooth");
+  const [hypeLevel, setHypeLevel] = useState(0);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
   const [autoMixing, setAutoMixing] = useState(false);
@@ -446,13 +463,22 @@ export function useAudioEngine() {
 
       masterRef.current = ctxRef.current.createGain();
 
+      talkoverGainRef.current = ctxRef.current.createGain();
+      talkoverGainRef.current.gain.value = 1;
+
       compressorRef.current = ctxRef.current.createDynamicsCompressor();
       masterGainRef.current = ctxRef.current.createGain();
       masterGainRef.current.gain.value = 1;
 
-      masterRef.current.connect(compressorRef.current);
+      masterAnalyzerRef.current = ctxRef.current.createAnalyser();
+      masterAnalyzerRef.current.fftSize = 1024;
+      masterAnalyzerRef.current.smoothingTimeConstant = 0.8;
+
+      masterRef.current.connect(talkoverGainRef.current);
+      talkoverGainRef.current.connect(compressorRef.current);
       compressorRef.current.connect(masterGainRef.current);
-      masterGainRef.current.connect(ctxRef.current.destination);
+      masterGainRef.current.connect(masterAnalyzerRef.current);
+      masterAnalyzerRef.current.connect(ctxRef.current.destination);
 
       applyCompressorSettings(defaultMastering);
 
@@ -624,6 +650,79 @@ export function useAudioEngine() {
     }
   }, []);
 
+  const CAMELOT_KEYS = [
+    { key: "C",  camelot: "8B", relative: "Am",  camelotRel: "8A" },
+    { key: "C#", camelot: "3B", relative: "A#m", camelotRel: "3A" },
+    { key: "D",  camelot: "10B", relative: "Bm",  camelotRel: "10A" },
+    { key: "D#", camelot: "5B", relative: "Cm",  camelotRel: "5A" },
+    { key: "E",  camelot: "12B", relative: "C#m", camelotRel: "12A" },
+    { key: "F",  camelot: "7B", relative: "Dm",  camelotRel: "7A" },
+    { key: "F#", camelot: "2B", relative: "D#m", camelotRel: "2A" },
+    { key: "G",  camelot: "9B", relative: "Em",  camelotRel: "9A" },
+    { key: "G#", camelot: "4B", relative: "Fm",  camelotRel: "4A" },
+    { key: "A",  camelot: "11B", relative: "F#m", camelotRel: "11A" },
+    { key: "A#", camelot: "6B", relative: "Gm",  camelotRel: "6A" },
+    { key: "B",  camelot: "1B", relative: "G#m", camelotRel: "1A" },
+  ];
+
+  const detectKey = useCallback((buffer: AudioBuffer): { key: string; camelot: string } => {
+    const data = buffer.getChannelData(0);
+    const sampleRate = buffer.sampleRate;
+    const chroma = new Array(12).fill(0);
+
+    const step = Math.floor(sampleRate / 10);
+    const numSamples = Math.min(data.length, sampleRate * 30);
+
+    for (let i = 0; i < numSamples; i += step) {
+      const sample = Math.abs(data[i]);
+      if (sample < 0.001) continue;
+
+      for (let midiNote = 36; midiNote <= 84; midiNote++) {
+        const freq = 440 * Math.pow(2, (midiNote - 69) / 12);
+        const period = sampleRate / freq;
+        if (i + period >= data.length) continue;
+
+        let correlation = 0;
+        const windowSize = Math.min(256, Math.floor(period * 4));
+        for (let j = 0; j < windowSize && i + j + Math.floor(period) < data.length; j++) {
+          correlation += data[i + j] * data[i + j + Math.floor(period)];
+        }
+
+        if (correlation > 0) {
+          const pitchClass = midiNote % 12;
+          chroma[pitchClass] += correlation;
+        }
+      }
+    }
+
+    const A_MAJOR_PROFILE = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
+    const A_MINOR_PROFILE = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
+
+    const chromaMax = Math.max(...chroma) || 1;
+    const chromaNorm = chroma.map(v => v / chromaMax);
+
+    let bestMajorScore = -Infinity, bestMinorScore = -Infinity;
+    let bestMajorKey = 0, bestMinorKey = 0;
+
+    for (let key = 0; key < 12; key++) {
+      let majorScore = 0, minorScore = 0;
+      for (let pc = 0; pc < 12; pc++) {
+        majorScore += chromaNorm[(pc + key) % 12] * A_MAJOR_PROFILE[pc];
+        minorScore += chromaNorm[(pc + key) % 12] * A_MINOR_PROFILE[pc];
+      }
+      if (majorScore > bestMajorScore) { bestMajorScore = majorScore; bestMajorKey = key; }
+      if (minorScore > bestMinorScore) { bestMinorScore = minorScore; bestMinorKey = key; }
+    }
+
+    if (bestMajorScore >= bestMinorScore) {
+      const k = CAMELOT_KEYS[bestMajorKey];
+      return { key: k.key, camelot: k.camelot };
+    } else {
+      const k = CAMELOT_KEYS[bestMinorKey];
+      return { key: k.relative, camelot: k.camelotRel };
+    }
+  }, []);
+
   const loadFile = useCallback(async (file: File | string, which: DeckId) => {
     const ctx = getCtx();
     let arrayBuffer: ArrayBuffer;
@@ -640,6 +739,15 @@ export function useAudioEngine() {
 
     const buffer = await ctx.decodeAudioData(arrayBuffer);
     const waveformData = generateWaveform(buffer);
+
+    let detectedKey = "";
+    let camelotCode = "";
+    try {
+      const keyResult = detectKey(buffer);
+      detectedKey = keyResult.key;
+      camelotCode = keyResult.camelot;
+    } catch (_) {}
+
     setDeck(which, (prev) => ({
       ...prev,
       buffer,
@@ -651,9 +759,11 @@ export function useAudioEngine() {
       loop: { ...defaultLoop },
       cuePoint: 0,
       beatGrid: [],
+      detectedKey,
+      camelotCode,
     }));
     offsetRefs.current[which] = 0;
-  }, [getCtx, generateWaveform, setDeck]);
+  }, [getCtx, generateWaveform, setDeck, detectKey]);
 
   const stopSource = useCallback((which: DeckId) => {
     if (sourceRefs.current[which]) {
@@ -866,21 +976,67 @@ export function useAudioEngine() {
     setDeck(which, (prev) => ({ ...prev, beatGrid: grid }));
   }, [decks, setDeck]);
 
-  const updateCrossfadeAB = useCallback((val: number) => {
-    setCrossfadeAB(val);
-    if (ctxRef.current && nodesRef.current.A && nodesRef.current.B) {
-      nodesRef.current.A.gain.gain.setValueAtTime(1 - val, ctxRef.current.currentTime);
-      nodesRef.current.B.gain.gain.setValueAtTime(val, ctxRef.current.currentTime);
+  const applyCrossfadeCurve = useCallback((val: number, curve: CrossfaderCurve): [number, number] => {
+    if (curve === "smooth") {
+      return [1 - val, val];
+    } else if (curve === "club") {
+      const t = val;
+      const curved = t * t * (3 - 2 * t);
+      return [1 - curved, curved];
+    } else {
+      const a = val < 0.48 ? 1 : val > 0.52 ? 0 : 1 - (val - 0.48) / 0.04;
+      const b = val > 0.52 ? 1 : val < 0.48 ? 0 : (val - 0.48) / 0.04;
+      return [a, b];
     }
   }, []);
 
+  const updateCrossfadeAB = useCallback((val: number) => {
+    setCrossfadeAB(val);
+    setCrossfaderCurveAB(prev => {
+      if (ctxRef.current && nodesRef.current.A && nodesRef.current.B) {
+        const [gainA, gainB] = applyCrossfadeCurve(val, prev);
+        nodesRef.current.A.gain.gain.setValueAtTime(gainA, ctxRef.current.currentTime);
+        nodesRef.current.B.gain.gain.setValueAtTime(gainB, ctxRef.current.currentTime);
+      }
+      return prev;
+    });
+  }, [applyCrossfadeCurve]);
+
   const updateCrossfadeCD = useCallback((val: number) => {
     setCrossfadeCD(val);
-    if (ctxRef.current && nodesRef.current.C && nodesRef.current.D) {
-      nodesRef.current.C.gain.gain.setValueAtTime(1 - val, ctxRef.current.currentTime);
-      nodesRef.current.D.gain.gain.setValueAtTime(val, ctxRef.current.currentTime);
+    setCrossfaderCurveCD(prev => {
+      if (ctxRef.current && nodesRef.current.C && nodesRef.current.D) {
+        const [gainC, gainD] = applyCrossfadeCurve(val, prev);
+        nodesRef.current.C.gain.gain.setValueAtTime(gainC, ctxRef.current.currentTime);
+        nodesRef.current.D.gain.gain.setValueAtTime(gainD, ctxRef.current.currentTime);
+      }
+      return prev;
+    });
+  }, [applyCrossfadeCurve]);
+
+  const setCrossfaderCurve = useCallback((pair: "AB" | "CD", curve: CrossfaderCurve) => {
+    if (pair === "AB") {
+      setCrossfaderCurveAB(curve);
+      setCrossfadeAB(prev => {
+        if (ctxRef.current && nodesRef.current.A && nodesRef.current.B) {
+          const [gainA, gainB] = applyCrossfadeCurve(prev, curve);
+          nodesRef.current.A.gain.gain.setValueAtTime(gainA, ctxRef.current.currentTime);
+          nodesRef.current.B.gain.gain.setValueAtTime(gainB, ctxRef.current.currentTime);
+        }
+        return prev;
+      });
+    } else {
+      setCrossfaderCurveCD(curve);
+      setCrossfadeCD(prev => {
+        if (ctxRef.current && nodesRef.current.C && nodesRef.current.D) {
+          const [gainC, gainD] = applyCrossfadeCurve(prev, curve);
+          nodesRef.current.C.gain.gain.setValueAtTime(gainC, ctxRef.current.currentTime);
+          nodesRef.current.D.gain.gain.setValueAtTime(gainD, ctxRef.current.currentTime);
+        }
+        return prev;
+      });
     }
-  }, []);
+  }, [applyCrossfadeCurve]);
 
   const startRecording = useCallback(() => {
     if (!destRef.current) getCtx();
@@ -894,16 +1050,29 @@ export function useAudioEngine() {
       const url = URL.createObjectURL(blob);
       setRecordingUrl(url);
       setIsRecording(false);
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
     };
     recorder.start();
     recorderRef.current = recorder;
+    recordingStartRef.current = Date.now();
+    setRecordingElapsed(0);
     setIsRecording(true);
     setRecordingUrl(null);
+    recordingTimerRef.current = window.setInterval(() => {
+      setRecordingElapsed(Math.floor((Date.now() - recordingStartRef.current) / 1000));
+    }, 1000);
   }, [getCtx]);
 
   const stopRecording = useCallback(() => {
     if (recorderRef.current && recorderRef.current.state !== "inactive") {
       recorderRef.current.stop();
+    }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
     }
   }, []);
 
@@ -1091,6 +1260,48 @@ export function useAudioEngine() {
     }, 2200);
   }, [getCtx, decks, setDeck, stopSource]);
 
+  const setTalkoverDuck = useCallback((active: boolean) => {
+    const ctx = ctxRef.current;
+    const gain = talkoverGainRef.current;
+    if (!ctx || !gain) return;
+    const t = ctx.currentTime;
+    if (active) {
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.linearRampToValueAtTime(0.25, t + 0.15);
+    } else {
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(gain.gain.value, t);
+      gain.gain.linearRampToValueAtTime(1.0, t + 0.6);
+    }
+  }, []);
+
+  const getMasterInputNode = useCallback((): AudioNode | null => {
+    return masterRef.current;
+  }, []);
+
+  const tapBpm = useCallback((which: DeckId) => {
+    const now = performance.now();
+    const taps = tapTimesRef.current[which];
+    const MAX_GAP = 3000;
+    if (taps.length > 0 && now - taps[taps.length - 1] > MAX_GAP) {
+      tapTimesRef.current[which] = [];
+    }
+    tapTimesRef.current[which] = [...tapTimesRef.current[which], now];
+    const updatedTaps = tapTimesRef.current[which];
+    if (updatedTaps.length < 2) return;
+    const intervals: number[] = [];
+    for (let i = 1; i < updatedTaps.length; i++) {
+      intervals.push(updatedTaps[i] - updatedTaps[i - 1]);
+    }
+    const avg = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const bpm = Math.round(60000 / avg);
+    setDeck(which, (prev) => ({ ...prev, bpm }));
+  }, [setDeck]);
+
+  const hypeWindowRef = useRef<number[]>([]);
+  const lastHypeUpdateRef = useRef<number>(0);
+
   useEffect(() => {
     const update = () => {
       const ctx = ctxRef.current;
@@ -1139,6 +1350,19 @@ export function useAudioEngine() {
         });
       });
 
+      const now = performance.now();
+      if (masterAnalyzerRef.current && now - lastHypeUpdateRef.current > 500) {
+        lastHypeUpdateRef.current = now;
+        const freqData = new Uint8Array(masterAnalyzerRef.current.frequencyBinCount);
+        masterAnalyzerRef.current.getByteFrequencyData(freqData);
+        let masterRms = 0;
+        for (let i = 0; i < freqData.length; i++) masterRms += freqData[i] * freqData[i];
+        masterRms = Math.sqrt(masterRms / freqData.length) / 255;
+        hypeWindowRef.current = [...hypeWindowRef.current.slice(-9), masterRms];
+        const avg = hypeWindowRef.current.reduce((a, b) => a + b, 0) / hypeWindowRef.current.length;
+        setHypeLevel(avg);
+      }
+
       animFrameRef.current = requestAnimationFrame(update);
     };
     animFrameRef.current = requestAnimationFrame(update);
@@ -1148,14 +1372,16 @@ export function useAudioEngine() {
   return {
     decks,
     crossfadeAB, crossfadeCD,
-    isRecording, recordingUrl, autoMixing,
+    crossfaderCurveAB, crossfaderCurveCD, setCrossfaderCurve,
+    hypeLevel,
+    isRecording, recordingUrl, recordingElapsed, autoMixing,
     samplePads, mastering,
     loadFile, playDeck, pauseDeck,
     setRate, setVolume,
     setCue, jumpCue, seekDeck,
     setEQ, setFilter, toggleFilter, setReverb, setDelay,
     setHotCue, setAutoHotCues, jumpHotCue, toggleLoop,
-    setBeatGrid,
+    setBeatGrid, tapBpm,
     updateCrossfadeAB, updateCrossfadeCD,
     startRecording, stopRecording,
     autoMix, getCtx,
@@ -1163,5 +1389,6 @@ export function useAudioEngine() {
     setStemGain, toggleStems,
     setMasterPreset, setMasterGain,
     beatSync, spinBack, brake, echoOut,
+    setTalkoverDuck, getMasterInputNode,
   };
 }
