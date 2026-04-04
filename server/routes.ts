@@ -1064,7 +1064,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   app.delete("/api/library/favorites/:trackId", async (req: Request, res: Response) => {
     const sid = getSessionId(req, res);
-    await storage.removeFavorite(sid, req.params.trackId);
+    await storage.removeFavorite(sid, req.params.trackId as string);
     return res.json({ ok: true });
   });
 

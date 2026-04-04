@@ -283,3 +283,18 @@ export const royaltyPayouts = pgTable("royalty_payouts", {
 export const insertRoyaltyPayoutSchema = createInsertSchema(royaltyPayouts).omit({ id: true });
 export type InsertRoyaltyPayout = z.infer<typeof insertRoyaltyPayoutSchema>;
 export type RoyaltyPayout = typeof royaltyPayouts.$inferSelect;
+
+// Chat conversations and messages (used by replit_integrations/chat)
+export const conversations = pgTable("conversations", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  title: text("title").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const messages = pgTable("messages", {
+  id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
+  conversationId: integer("conversation_id").notNull(),
+  role: text("role").notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});

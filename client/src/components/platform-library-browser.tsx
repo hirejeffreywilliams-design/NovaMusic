@@ -26,8 +26,8 @@ export interface PlatformTrack {
 }
 
 interface PlatformLibraryBrowserProps {
-  activeDeck: string;
-  onAddToQueue: (track: PlatformTrack) => void;
+  activeDeck?: string;
+  onAddToQueue?: (track: PlatformTrack) => void;
 }
 
 // ─── Session ID (persists across re-renders) ─────────────────────────────────
@@ -844,9 +844,9 @@ export function PlatformLibraryBrowser({ activeDeck, onAddToQueue }: PlatformLib
   const { toast } = useToast();
 
   function handleAddToQueue(track: PlatformTrack) {
-    onAddToQueue(track);
+    onAddToQueue?.(track);
     toast({
-      title: `Added to Deck ${activeDeck}`,
+      title: `Added to Deck ${activeDeck ?? "A"}`,
       description: `${track.title} — ${track.artist}`,
     });
   }
