@@ -285,6 +285,10 @@ export function useAudioEngine() {
   const offsetRefs = useRef<Record<DeckId, number>>({ A: 0, B: 0, C: 0, D: 0 });
   const animFrameRef = useRef<number>(0);
   const loopTimeoutRef = useRef<Record<DeckId, number | null>>({ A: null, B: null, C: null, D: null });
+  // Tracks whether a stop was manually requested (pause/seek/load) vs natural track end
+  const manualStopRef = useRef<Record<DeckId, boolean>>({ A: false, B: false, C: false, D: false });
+  // Per-deck callbacks invoked when a track ends naturally (not paused/stopped manually)
+  const onTrackEndedRef = useRef<Partial<Record<DeckId, () => void>>>({});
 
   const [decks, setDecks] = useState<Record<DeckId, DeckState>>(makeDefaultDecks);
   const [crossfadeAB, setCrossfadeAB] = useState(0.5);
@@ -767,6 +771,8 @@ export function useAudioEngine() {
 
   const stopSource = useCallback((which: DeckId) => {
     if (sourceRefs.current[which]) {
+      // Mark the current source as manually stopped via its own closure flag
+      manualStopRef.current[which] = true;
       try { sourceRefs.current[which]!.stop(); } catch (_) {}
       sourceRefs.current[which] = null;
     }
@@ -781,19 +787,44 @@ export function useAudioEngine() {
     const state = decks[which];
     if (!state.buffer) return;
 
+    // Stop any existing source (this sets manualStopRef=true for the old source)
     stopSource(which);
 
     const src = ctx.createBufferSource();
     src.buffer = state.buffer;
     src.playbackRate.value = state.playbackRate;
     connectSourceToStemInput(src, nodesRef.current[which]!, state.stemsEnabled);
+
+    // Each source tracks its own stopped-manually flag via closure
+    // We read from manualStopRef only while this specific src is the active one
+    const srcToken = src;
     src.onended = () => {
       if (!state.loop.active) {
-        setDeck(which, (prev) => ({ ...prev, isPlaying: false }));
-        sourceRefs.current[which] = null;
+        // A source fires onended either naturally or when .stop() is called
+        // manualStopRef is set to true in stopSource() before .stop() is called.
+        // isCurrentSource: true when this source is still the active one for the deck.
+        // Stale onended (from a replaced source) must not flip deck state or fire callbacks.
+        const isCurrentSource = sourceRefs.current[which] === srcToken || sourceRefs.current[which] === null;
+        const wasManual = manualStopRef.current[which];
+
+        if (isCurrentSource) {
+          // Only update deck state and source ref for the active source
+          setDeck(which, (prev) => ({ ...prev, isPlaying: false }));
+          if (sourceRefs.current[which] === srcToken) {
+            sourceRefs.current[which] = null;
+          }
+          if (!wasManual) {
+            // Natural end of the active source — fire the track-ended callback
+            onTrackEndedRef.current[which]?.();
+          }
+          manualStopRef.current[which] = false;
+        }
+        // Stale onended from a replaced source: silently ignore
       }
     };
 
+    // Reset manual-stop flag for the new source before starting
+    manualStopRef.current[which] = false;
     const offset = offsetRefs.current[which];
     src.start(0, offset);
     startTimeRefs.current[which] = ctx.currentTime - offset / state.playbackRate;
@@ -1390,5 +1421,13 @@ export function useAudioEngine() {
     setMasterPreset, setMasterGain,
     beatSync, spinBack, brake, echoOut,
     setTalkoverDuck, getMasterInputNode,
+    /** Register a callback to be called when a deck's track ends naturally (not paused/stopped) */
+    registerTrackEndedCallback: (deck: DeckId, cb: (() => void) | null) => {
+      if (cb) {
+        onTrackEndedRef.current[deck] = cb;
+      } else {
+        delete onTrackEndedRef.current[deck];
+      }
+    },
   };
 }

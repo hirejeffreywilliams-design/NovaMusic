@@ -1037,6 +1037,52 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   registerAIDJRoutes(app);
   registerPlatformRoutes(app);
 
+  // --- Library Session Middleware ---
+  function getSessionId(req: Request, res: Response): string {
+    let sid = req.cookies?.["lib_session"];
+    if (!sid) {
+      sid = randomUUID();
+      res.cookie("lib_session", sid, { httpOnly: true, maxAge: 365 * 24 * 60 * 60 * 1000, sameSite: "lax" });
+    }
+    return sid;
+  }
+
+  // Library Favorites
+  app.get("/api/library/favorites", async (req: Request, res: Response) => {
+    const sid = getSessionId(req, res);
+    const favs = await storage.getFavorites(sid);
+    return res.json(favs.map(f => JSON.parse(f.trackData)));
+  });
+
+  app.post("/api/library/favorites", async (req: Request, res: Response) => {
+    const sid = getSessionId(req, res);
+    const track = req.body;
+    if (!track?.id) return res.status(400).json({ error: "track.id required" });
+    await storage.addFavorite(sid, track.id, JSON.stringify(track));
+    return res.json({ ok: true });
+  });
+
+  app.delete("/api/library/favorites/:trackId", async (req: Request, res: Response) => {
+    const sid = getSessionId(req, res);
+    await storage.removeFavorite(sid, req.params.trackId);
+    return res.json({ ok: true });
+  });
+
+  // Library History
+  app.get("/api/library/history", async (req: Request, res: Response) => {
+    const sid = getSessionId(req, res);
+    const hist = await storage.getHistory(sid);
+    return res.json(hist.map(h => JSON.parse(h.trackData)));
+  });
+
+  app.post("/api/library/history", async (req: Request, res: Response) => {
+    const sid = getSessionId(req, res);
+    const track = req.body;
+    if (!track?.id) return res.status(400).json({ error: "track.id required" });
+    await storage.addHistory(sid, track.id, JSON.stringify(track));
+    return res.json({ ok: true });
+  });
+
   // --- Jamendo Free Music Library ---
 
   interface JamendoTrackResult {
@@ -1048,12 +1094,15 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     audio: string;
     duration: number;
     license_ccurl: string;
+    popularity_total?: number;
+    popularity_week?: number;
     musicinfo?: {
       tags?: {
         genres?: string[];
         instruments?: string[];
         vartags?: string[];
       };
+      speed?: string;
     };
   }
 
@@ -1061,6 +1110,204 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     headers?: { results_count?: number };
     results: JamendoTrackResult[];
   }
+
+  function mapJamendoTrack(t: JamendoTrackResult) {
+    const vartags = t.musicinfo?.tags?.vartags ?? [];
+    const bpmTag = vartags.find(v => /^\d{2,3}bpm$/i.test(v));
+    const bpm = bpmTag ? parseInt(bpmTag, 10) : undefined;
+    const keyTag = vartags.find(v => /^[A-Ga-g][b#]?\s*(major|minor|maj|min)$/i.test(v));
+    const key = keyTag ?? undefined;
+    return {
+      id: t.id,
+      name: t.name,
+      artist: t.artist_name,
+      albumArt: t.album_image || t.image,
+      duration: t.duration,
+      genre: t.musicinfo?.tags?.genres?.join(", ") ?? "",
+      mood: vartags.filter(v => !bpmTag || v !== bpmTag).join(", "),
+      license: t.license_ccurl,
+      bpm,
+      key,
+      energy: t.musicinfo?.speed ?? undefined,
+      popularityTotal: t.popularity_total ?? 0,
+      popularityWeek: t.popularity_week ?? 0,
+    };
+  }
+
+  // In-memory cache: key -> { data, expiresAt }
+  const jamendoCache = new Map<string, { data: any; expiresAt: number }>();
+  const CACHE_TTL_MS = 10 * 60 * 1000;
+
+  async function jamendoFetch(params: URLSearchParams): Promise<JamendoTrackResult[]> {
+    const key = params.toString();
+    const cached = jamendoCache.get(key);
+    if (cached && Date.now() < cached.expiresAt) return cached.data;
+    const response = await fetch(`https://api.jamendo.com/v3.0/tracks/?${key}`);
+    if (!response.ok) return [];
+    const data: JamendoApiResponse = await response.json();
+    const results = data.results || [];
+    jamendoCache.set(key, { data: results, expiresAt: Date.now() + CACHE_TTL_MS });
+    return results;
+  }
+
+  async function fetchGenreBatch(clientId: string, genre: string, offset: number, limit: number): Promise<JamendoTrackResult[]> {
+    const params = new URLSearchParams({
+      client_id: clientId,
+      format: "json",
+      limit: limit.toString(),
+      offset: offset.toString(),
+      include: "musicinfo",
+      imagesize: "200",
+      audioformat: "mp31",
+      tags: genre,
+      order: "popularity_total_desc",
+    });
+    return jamendoFetch(params);
+  }
+
+  // /api/jamendo/library?genre=electronic&page=0
+  // Total cap: 200 tracks per genre. page=0 fetches all 200 in 4 parallel batches of 50.
+  // Subsequent pages are served from the cache (offset within the 200-track set).
+  const PAGE_SIZE = 50;
+  const MAX_GENRE_TRACKS = 200;
+  app.get("/api/jamendo/library", async (req: Request, res: Response) => {
+    const clientId = process.env.JAMENDO_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: "Jamendo client ID not configured" });
+
+    const { genre = "electronic", page = "0" } = req.query as Record<string, string>;
+    const pageNum = Math.max(0, parseInt(page, 10) || 0);
+    const cacheKey = `library:${genre}`;
+
+    try {
+      // Fetch all 200 tracks on first access (4 batches of 50), then serve from cache
+      let allTracks: JamendoTrackResult[];
+      const cachedGenre = jamendoCache.get(cacheKey);
+      if (cachedGenre && Date.now() < cachedGenre.expiresAt) {
+        allTracks = cachedGenre.data as JamendoTrackResult[];
+      } else {
+        const batches = await Promise.all(
+          Array.from({ length: MAX_GENRE_TRACKS / PAGE_SIZE }, (_, i) =>
+            fetchGenreBatch(clientId, genre, i * PAGE_SIZE, PAGE_SIZE)
+          )
+        );
+        const seen = new Set<string>();
+        allTracks = batches.flat().filter(t => seen.has(t.id) ? false : (seen.add(t.id), true));
+        jamendoCache.set(cacheKey, { data: allTracks, expiresAt: Date.now() + 10 * 60 * 1000 });
+      }
+
+      const sliceStart = pageNum * PAGE_SIZE;
+      const sliceEnd = Math.min(sliceStart + PAGE_SIZE, MAX_GENRE_TRACKS);
+      const pageSlice = allTracks.slice(sliceStart, sliceEnd);
+      return res.json({ tracks: pageSlice.map(mapJamendoTrack), total: allTracks.length, page: pageNum });
+    } catch (err) {
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch" });
+    }
+  });
+
+  // /api/jamendo/featured?limit=100
+  app.get("/api/jamendo/featured", async (req: Request, res: Response) => {
+    const clientId = process.env.JAMENDO_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: "Jamendo client ID not configured" });
+
+    const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 100);
+    const genres = ["electronic", "hiphop", "pop", "house", "dance", "techno", "rnb", "rock"];
+    const perGenre = Math.ceil(limit / genres.length);
+
+    try {
+      const batches = await Promise.all(genres.map(genre => {
+        const params = new URLSearchParams({
+          client_id: clientId,
+          format: "json",
+          limit: perGenre.toString(),
+          offset: "0",
+          include: "musicinfo",
+          imagesize: "200",
+          audioformat: "mp31",
+          tags: genre,
+          order: "popularity_total_desc",
+        });
+        return jamendoFetch(params);
+      }));
+      const allTracks = batches.flat();
+      const seen = new Set<string>();
+      const unique = allTracks
+        .filter(t => seen.has(t.id) ? false : (seen.add(t.id), true))
+        .sort((a, b) => (b.popularity_total ?? 0) - (a.popularity_total ?? 0))
+        .slice(0, limit);
+      return res.json({ tracks: unique.map(mapJamendoTrack) });
+    } catch (err) {
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch" });
+    }
+  });
+
+  // /api/jamendo/trending?limit=100
+  app.get("/api/jamendo/trending", async (req: Request, res: Response) => {
+    const clientId = process.env.JAMENDO_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: "Jamendo client ID not configured" });
+
+    const limit = Math.min(parseInt((req.query.limit as string) || "50", 10), 100);
+    try {
+      const makeParams = (offset: number) => new URLSearchParams({
+        client_id: clientId,
+        format: "json",
+        limit: "50",
+        offset: String(offset),
+        include: "musicinfo",
+        imagesize: "200",
+        audioformat: "mp31",
+        order: "popularity_week_desc",
+      });
+      const batches = limit > 50
+        ? await Promise.all([jamendoFetch(makeParams(0)), jamendoFetch(makeParams(50))])
+        : [await jamendoFetch(makeParams(0))];
+      const allTracks = batches.flat();
+      const seen = new Set<string>();
+      const unique = allTracks.filter(t => {
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+      });
+      return res.json({ tracks: unique.slice(0, limit).map(mapJamendoTrack) });
+    } catch (err) {
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch" });
+    }
+  });
+
+  // /api/jamendo/suggest?bpm=128&key=C+Major
+  app.get("/api/jamendo/suggest", async (req: Request, res: Response) => {
+    const clientId = process.env.JAMENDO_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: "Jamendo client ID not configured" });
+
+    const { bpm, genre } = req.query as Record<string, string>;
+    const bpmVal = bpm ? parseInt(bpm, 10) : undefined;
+
+    try {
+      const searchGenre = genre || "electronic";
+      const params = new URLSearchParams({
+        client_id: clientId,
+        format: "json",
+        limit: "50",
+        offset: "0",
+        include: "musicinfo",
+        imagesize: "200",
+        audioformat: "mp31",
+        tags: searchGenre,
+        order: "popularity_total_desc",
+      });
+      const results = await jamendoFetch(params);
+      let filtered = results.map(mapJamendoTrack);
+
+      if (bpmVal) {
+        const lo = bpmVal * 0.95;
+        const hi = bpmVal * 1.05;
+        filtered = filtered.filter(t => !t.bpm || (t.bpm >= lo && t.bpm <= hi));
+      }
+
+      return res.json({ tracks: filtered.slice(0, 20) });
+    } catch (err) {
+      return res.status(500).json({ error: err instanceof Error ? err.message : "Failed to fetch" });
+    }
+  });
 
   app.get("/api/jamendo/search", async (req: Request, res: Response) => {
     const clientId = process.env.JAMENDO_CLIENT_ID;
@@ -1093,16 +1340,7 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
         return res.status(response.status).json({ error: "Jamendo API error" });
       }
       const data: JamendoApiResponse = await response.json();
-      const tracks = (data.results || []).map((t: JamendoTrackResult) => ({
-        id: t.id,
-        name: t.name,
-        artist: t.artist_name,
-        albumArt: t.album_image || t.image,
-        duration: t.duration,
-        genre: t.musicinfo?.tags?.genres?.join(", ") ?? "",
-        mood: t.musicinfo?.tags?.vartags?.join(", ") ?? "",
-        license: t.license_ccurl,
-      }));
+      const tracks = (data.results || []).map(mapJamendoTrack);
       return res.json({ tracks, total: data.headers?.results_count ?? tracks.length });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to fetch from Jamendo";

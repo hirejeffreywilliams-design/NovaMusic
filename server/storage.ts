@@ -28,7 +28,30 @@ interface DmcaNotice {
   createdAt: number;
 }
 
+export interface LibraryFavorite {
+  id: string;
+  sessionId: string;
+  trackId: string;
+  trackData: string;
+  createdAt: number;
+}
+
+export interface LibraryHistoryEntry {
+  id: string;
+  sessionId: string;
+  trackId: string;
+  trackData: string;
+  playedAt: number;
+}
+
 export interface IStorage {
+  // Library favorites & history
+  getFavorites(sessionId: string): Promise<LibraryFavorite[]>;
+  addFavorite(sessionId: string, trackId: string, trackData: string): Promise<LibraryFavorite>;
+  removeFavorite(sessionId: string, trackId: string): Promise<void>;
+  getHistory(sessionId: string): Promise<LibraryHistoryEntry[]>;
+  addHistory(sessionId: string, trackId: string, trackData: string): Promise<LibraryHistoryEntry>;
+
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
@@ -128,6 +151,41 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
+  private libraryFavorites: LibraryFavorite[] = [];
+  private libraryHistory: LibraryHistoryEntry[] = [];
+
+  async getFavorites(sessionId: string): Promise<LibraryFavorite[]> {
+    return this.libraryFavorites.filter(f => f.sessionId === sessionId).sort((a, b) => b.createdAt - a.createdAt);
+  }
+
+  async addFavorite(sessionId: string, trackId: string, trackData: string): Promise<LibraryFavorite> {
+    const existing = this.libraryFavorites.find(f => f.sessionId === sessionId && f.trackId === trackId);
+    if (existing) return existing;
+    const fav: LibraryFavorite = { id: randomUUID(), sessionId, trackId, trackData, createdAt: Date.now() };
+    this.libraryFavorites.push(fav);
+    return fav;
+  }
+
+  async removeFavorite(sessionId: string, trackId: string): Promise<void> {
+    this.libraryFavorites = this.libraryFavorites.filter(f => !(f.sessionId === sessionId && f.trackId === trackId));
+  }
+
+  async getHistory(sessionId: string): Promise<LibraryHistoryEntry[]> {
+    return this.libraryHistory.filter(h => h.sessionId === sessionId).sort((a, b) => b.playedAt - a.playedAt).slice(0, 20);
+  }
+
+  async addHistory(sessionId: string, trackId: string, trackData: string): Promise<LibraryHistoryEntry> {
+    this.libraryHistory = this.libraryHistory.filter(h => !(h.sessionId === sessionId && h.trackId === trackId));
+    const entry: LibraryHistoryEntry = { id: randomUUID(), sessionId, trackId, trackData, playedAt: Date.now() };
+    this.libraryHistory.push(entry);
+    const sessionHistory = this.libraryHistory.filter(h => h.sessionId === sessionId).sort((a, b) => b.playedAt - a.playedAt);
+    if (sessionHistory.length > 20) {
+      const toRemove = sessionHistory.slice(20).map(h => h.id);
+      this.libraryHistory = this.libraryHistory.filter(h => !toRemove.includes(h.id));
+    }
+    return entry;
+  }
+
   private users: Map<string, User> = new Map();
 
   // Crowd engagement maps

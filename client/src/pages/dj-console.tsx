@@ -7,7 +7,7 @@ import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
 import { CrowdHub } from "@/components/crowd-hub";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X, LibraryBig, ClipboardList } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X, LibraryBig, ClipboardList, type LucideIcon } from "lucide-react";
 import { DJPrepStudio } from "@/components/dj-prep-studio";
 
 /* ── Novel Feature 1: BPM Sync Ring ── */
@@ -247,6 +247,9 @@ export default function DJConsole() {
   const [jamendoLoadingTrackId, setJamendoLoadingTrackId] = useState<string | null>(null);
   const [sessionHistory, setSessionHistory] = useState<number[]>([]);
 
+  // Queue auto-load: reference to the queue's popNext function provided by JamendoMusicLibrary
+  const queuePopRef = useRef<{ popNext: (deck: DeckId) => import("@/components/jamendo-music-library").JamendoTrack | undefined } | null>(null);
+
   useEffect(() => {
     const interval = setInterval(() => {
       const playing = (engine.decks.A.isPlaying ? 1 : 0) + (engine.decks.B.isPlaying ? 1 : 0) +
@@ -257,6 +260,36 @@ export default function DJConsole() {
     }, 4000);
     return () => clearInterval(interval);
   }, [engine.decks]);
+
+  // Auto-load next queued track when a deck finishes playing naturally (not paused/stopped)
+  useEffect(() => {
+    const decksToRegister: DeckId[] = ["A", "B", "C", "D"];
+    decksToRegister.forEach(deckId => {
+      engine.registerTrackEndedCallback(deckId, () => {
+        if (!queuePopRef.current) return;
+        const nextTrack = queuePopRef.current.popNext(deckId);
+        if (!nextTrack) return;
+        const streamUrl = `/api/jamendo/stream?id=${nextTrack.id}`;
+        setJamendoLoadingTrackId(nextTrack.id);
+        engine.loadFile(streamUrl, deckId, `${nextTrack.name} — ${nextTrack.artist}`)
+          .then(() => {
+            engine.playDeck(deckId);
+            // Record history for queue auto-loaded track
+            fetch("/api/library/history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(nextTrack),
+            }).catch(() => {});
+          })
+          .finally(() => {
+            setJamendoLoadingTrackId(null);
+          });
+      });
+    });
+    return () => {
+      decksToRegister.forEach(deckId => engine.registerTrackEndedCallback(deckId, null));
+    };
+  }, [engine]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -278,7 +311,7 @@ export default function DJConsole() {
     }
   }, [engine]);
 
-  const tabs: { id: ViewTab; label: string; icon: any; badge?: number }[] = [
+  const tabs: { id: ViewTab; label: string; icon: LucideIcon; badge?: number }[] = [
     { id: "decks", label: "Decks", icon: LayoutGrid },
     { id: "fx", label: "FX Rack", icon: Sliders },
     { id: "soundboard", label: "Pads", icon: Music },
@@ -489,6 +522,9 @@ export default function DJConsole() {
             <JamendoMusicLibrary
               onLoadToDeck={handleJamendoLoad}
               loadingTrackId={jamendoLoadingTrackId}
+              activeDeckBpm={engine.decks[activeDeck]?.bpm || undefined}
+              activeDeckKey={engine.decks[activeDeck]?.detectedKey || undefined}
+              onQueueRef={ref => { queuePopRef.current = ref; }}
             />
           </div>
         )}
