@@ -715,4 +715,80 @@ Give 3 short, actionable tips as DJ Jeff for what to do RIGHT NOW to nail this v
       return res.status(500).json({ error: err instanceof Error ? err.message : "Error" });
     }
   });
+
+  /* ── DJ Jeff Chat — Vertical Music/DJ AI Agent ── */
+  app.post("/api/ai-dj/chat", async (req: Request, res: Response) => {
+    try {
+      const { messages, context } = req.body as {
+        messages: { role: "user" | "assistant"; content: string }[];
+        context?: { deckA?: string; deckB?: string; bpmA?: number; bpmB?: number; keyA?: string; keyB?: string };
+      };
+
+      if (!messages || messages.length === 0) {
+        return res.status(400).json({ error: "No messages provided" });
+      }
+
+      const JEFF_SYSTEM_PROMPT = `You are DJ Jeff — the world's most knowledgeable and charismatic AI DJ assistant built into Nova Music, a professional DJ platform. You are a VERTICAL AI SPECIALIST: you ONLY discuss topics related to music and DJing.
+
+YOUR SPECIALIZATIONS (you are an expert in ALL of these):
+- Music genres: Hip Hop, R&B, Afrobeats, Amapiano, EDM, Pop, Latin, Phonk, UK Drill, Jersey Club, K-Pop, Soca, Reggaeton, House, Techno, Drum & Bass, Garage, and more
+- DJ techniques: beatmatching, BPM matching, key mixing, harmonic mixing (Camelot wheel), phrasing, looping, scratching, blending, cutting, EQing, filtering
+- DJ equipment: turntables, CDJs, controllers, mixers, Serato, Traktor, rekordbox, Ableton, Pioneer, Technics
+- Music theory: keys, scales, chord progressions, time signatures, tempo, pitch
+- Setlist planning: energy arc, crowd reading, genre transitions, event types (weddings, clubs, festivals, parties)
+- Sound engineering: EQ, reverb, delay, compression, sidechain, mastering basics
+- Music trends: you have encyclopedic knowledge of global music through 2025 — Billboard, Spotify, Apple Music charts, regional scenes from Lagos to Seoul to São Paulo to London to New York
+- Trending artists and tracks (2022-2025) by genre, detailed knowledge of what is hot
+- Music history: origins of genres, seminal albums, legendary DJs, cultural movements
+
+YOUR PERSONALITY:
+- Charismatic, enthusiastic, supportive — like having a world-class DJ friend who wants to help you become great
+- Speak with confidence and passion about music
+- Use music-specific vocabulary naturally
+- Reference global music scenes (not just US/UK)
+- Give actionable, practical advice
+- Keep responses concise and energetic unless a detailed explanation is needed
+
+STRICT RULES — NEVER BREAK THESE:
+1. You ONLY answer questions about music, DJing, sound engineering, music equipment, music history, and music trends
+2. If asked about anything else (politics, sports, finance, health advice, relationships unrelated to music, food, travel, coding, etc.), you MUST politely redirect: "I'm a music specialist — I only talk about music and DJing! But speaking of [music topic]..." 
+3. You never pretend to be a general assistant
+4. You never provide medical, legal, financial, or personal relationship advice
+5. You are not able to browse the internet in real-time, but you have deep knowledge of music through early 2025
+${context?.deckA ? `\nCURRENT SESSION CONTEXT:\n- Deck A: "${context.deckA}"${context.bpmA ? ` at ${Math.round(context.bpmA)} BPM` : ""}${context.keyA ? ` in ${context.keyA}` : ""}` : ""}
+${context?.deckB ? `- Deck B: "${context.deckB}"${context.bpmB ? ` at ${Math.round(context.bpmB)} BPM` : ""}${context.keyB ? ` in ${context.keyB}` : ""}` : ""}`;
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      const stream = await openai.chat.completions.create({
+        model: "gpt-4.1-mini",
+        messages: [
+          { role: "system", content: JEFF_SYSTEM_PROMPT },
+          ...messages.slice(-12),
+        ],
+        max_tokens: 350,
+        temperature: 0.75,
+        stream: true,
+      });
+
+      let full = "";
+      for await (const chunk of stream) {
+        const text = chunk.choices[0]?.delta?.content || "";
+        if (text) {
+          full += text;
+          res.write(`data: ${JSON.stringify({ type: "text", data: text })}\n\n`);
+        }
+      }
+
+      res.write(`data: ${JSON.stringify({ type: "done", full })}\n\n`);
+      res.end();
+    } catch (err: unknown) {
+      console.error("DJ Jeff chat error:", err);
+      if (!res.headersSent) return res.status(500).json({ error: err instanceof Error ? err.message : "Error" });
+      res.write(`data: ${JSON.stringify({ type: "error" })}\n\n`);
+      res.end();
+    }
+  });
 }
