@@ -61,25 +61,33 @@ export function MixerPanel({ engine, deckLayout }: MixerPanelProps) {
   const hypePercent = Math.min((engine.hypeLevel || 0) / 0.6 * 100, 100);
 
   return (
-    <div className="mixer-surface p-3 flex flex-col gap-3">
+    <div className="p-3 flex flex-col gap-3 rounded-2xl"
+      style={{
+        background: "linear-gradient(145deg, rgba(191,90,242,0.06) 0%, rgba(5,2,18,0.96) 40%, rgba(0,170,255,0.04) 100%)",
+        border: "1px solid rgba(191,90,242,0.18)",
+        boxShadow: "0 0 30px rgba(191,90,242,0.08), inset 0 1px 0 rgba(255,255,255,0.05)",
+      }}
+    >
       <div className="flex items-center gap-4">
         <div className="flex-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: "#bf5af2" }}>A</span>
-            <span className="text-[9px] text-white/30 uppercase tracking-wider">Crossfade A/B</span>
-            <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: "#0af" }}>B</span>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-[0.25em] font-black" style={{ color: "#e879f9" }}>A</span>
+            <span className="text-[8px] text-white/25 uppercase tracking-[0.2em]" style={{ fontFamily: "'Oxanium', sans-serif" }}>CROSSFADE A/B</span>
+            <span className="text-[10px] uppercase tracking-[0.25em] font-black" style={{ color: "#38bdf8" }}>B</span>
           </div>
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={engine.crossfadeAB}
-            onChange={(e) => engine.updateCrossfadeAB(parseFloat(e.target.value))}
-            className="w-full h-2 rounded-full appearance-none cursor-pointer"
-            style={{ background: "linear-gradient(to right, #bf5af2, #1a0a30, #0af)" }}
-            data-testid="slider-crossfade-ab"
-          />
+          <div className="relative">
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={engine.crossfadeAB}
+              onChange={(e) => engine.updateCrossfadeAB(parseFloat(e.target.value))}
+              className="w-full h-3 rounded-full appearance-none cursor-pointer"
+              style={{ background: "linear-gradient(to right, #e879f9, rgba(20,8,45,0.8), #38bdf8)", boxShadow: "0 0 12px rgba(191,90,242,0.2)" }}
+              data-testid="slider-crossfade-ab"
+            />
+          </div>
           <CrossfaderCurveSelector
             pair="AB"
             curve={engine.crossfaderCurveAB || "smooth"}
@@ -89,10 +97,10 @@ export function MixerPanel({ engine, deckLayout }: MixerPanelProps) {
 
         {deckLayout === 4 && (
           <div className="flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: "#ff2d78" }}>C</span>
-              <span className="text-[9px] text-white/30 uppercase tracking-wider">Crossfade C/D</span>
-              <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: "#30d158" }}>D</span>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] uppercase tracking-[0.25em] font-black" style={{ color: "#ff2d78" }}>C</span>
+              <span className="text-[8px] text-white/25 uppercase tracking-[0.2em]" style={{ fontFamily: "'Oxanium', sans-serif" }}>CROSSFADE C/D</span>
+              <span className="text-[10px] uppercase tracking-[0.25em] font-black" style={{ color: "#30d158" }}>D</span>
             </div>
             <input
               type="range"
@@ -101,8 +109,8 @@ export function MixerPanel({ engine, deckLayout }: MixerPanelProps) {
               step={0.01}
               value={engine.crossfadeCD}
               onChange={(e) => engine.updateCrossfadeCD(parseFloat(e.target.value))}
-              className="w-full h-2 rounded-full appearance-none cursor-pointer"
-              style={{ background: "linear-gradient(to right, #ff2d78, #1a0a30, #30d158)" }}
+              className="w-full h-3 rounded-full appearance-none cursor-pointer"
+              style={{ background: "linear-gradient(to right, #ff2d78, rgba(20,8,45,0.8), #30d158)", boxShadow: "0 0 12px rgba(255,45,120,0.15)" }}
               data-testid="slider-crossfade-cd"
             />
             <CrossfaderCurveSelector
