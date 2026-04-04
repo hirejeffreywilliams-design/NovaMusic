@@ -1,14 +1,14 @@
-# DJ Hybrid - AI DJ Platform + Professional Mixer
+# Nova Music - Galactic Sound System
 
 ## Overview
 
-DJ Hybrid is a browser-based DJ mixing platform with three distinct experiences:
+Nova Music (formerly DJ Hybrid) is a browser-based DJ mixing platform with three distinct experiences:
 
-1. **AI DJ Mode (NEW - Beginner)** — Upload your music library, and the AI analyzes everything: BPM/key/genre detection, Fire Zone identification (the drop/hook/chorus), trending song detection, smart setlist planning, and automated mixing. Zero DJ knowledge required.
-2. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer
-3. **Party Mode (Sister App)** — Simplified, mobile-first DJ experience designed for party guests to drop beats and trigger sound effects
+1. **AI DJ Mode** — Upload your music library, AI analyzes BPM/key/genre detection, Fire Zone identification, smart setlist planning, and automated mixing. Features: Global Trend Radar (2024–2025 genre heat rankings), Energy Curve Planner (visualizes set arc), and Live Hype Score (real-time crowd energy indicator).
+2. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer. Features: BPM Sync Ring (deck status indicator), Session Heat Map (energy timeline), and Key Match Badge (harmonic compatibility display).
+3. **Party Mode** — Simplified, mobile-first DJ experience for parties. Features: VibeMeter (crowd energy gauge), Genre Roulette (spinning genre selector), and Emoji Storm (emoji burst overlays on FX pad presses).
 
-The app features a vibrant neon party aesthetic with purple, blue, pink, and green accents, glow effects, glass-morphism panels, and smooth animations throughout.
+The app uses a galactic/futuristic design with deep space backgrounds (#03030c), neon color palette (nova purple #e879f9, indigo #818cf8, sky blue #38bdf8, pink #ff2d78), animated cosmic effects, Oxanium font for headers, and the tagline "GALACTIC SOUND SYSTEM".
 
 ## User Preferences
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import { useAudioEngine, type DeckId } from "@/hooks/use-audio-engine";
 import { DeckPanel } from "@/components/deck-panel";
@@ -8,6 +8,71 @@ import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
 import { CrowdHub } from "@/components/crowd-hub";
 import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X, LibraryBig } from "lucide-react";
+
+/* ── Novel Feature 1: BPM Sync Ring ── */
+function BpmSyncRing({ deckAName, deckBName, deckAPlaying, deckBPlaying }: {
+  deckAName?: string; deckBName?: string; deckAPlaying: boolean; deckBPlaying: boolean;
+}) {
+  const synced = deckAPlaying && deckBPlaying;
+  const color = synced ? "#30d158" : deckAPlaying || deckBPlaying ? "#ffd60a" : "#ffffff20";
+  const label = synced ? "DECKS SYNCED" : deckAPlaying && !deckBPlaying ? "DECK A SOLO" : !deckAPlaying && deckBPlaying ? "DECK B SOLO" : "STANDBY";
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border" data-testid="bpm-sync-ring"
+      style={{ background: `${color}10`, borderColor: `${color}30` }}>
+      <div className="relative w-4 h-4 shrink-0">
+        {synced && [0, 1].map(i => (
+          <div key={i} className="absolute inset-0 rounded-full border"
+            style={{ borderColor: color, animation: `nova-ring ${1.2 + i * 0.4}s ease-out infinite`, animationDelay: `${i * 0.3}s`, opacity: 0.6 }} />
+        ))}
+        <div className="absolute inset-1 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
+      </div>
+      <span className="text-[9px] font-black tracking-wider" style={{ color }}>{label}</span>
+    </div>
+  );
+}
+
+/* ── Novel Feature 2: Session Heat Map Timeline ── */
+function SessionHeatMap({ history }: { history: number[] }) {
+  const max = Math.max(...history, 0.01);
+  const slots = history.length > 0 ? history : Array(20).fill(0);
+  return (
+    <div className="px-4 py-1.5 border-b border-white/5" data-testid="session-heatmap">
+      <div className="flex items-end gap-[1px] h-4 w-full" title="Session energy timeline">
+        {slots.map((v, i) => {
+          const pct = history.length > 0 ? v / max : 0;
+          const hue = pct < 0.5 ? 140 : pct < 0.8 ? 45 : 0;
+          return (
+            <div key={i} className="flex-1 rounded-sm min-w-[2px] transition-all duration-300"
+              style={{
+                height: `${Math.max(8, pct * 100)}%`,
+                background: history.length > 0 ? `hsl(${hue}, 100%, 60%)` : "rgba(255,255,255,0.06)",
+                opacity: history.length > 0 ? 0.6 + pct * 0.4 : 1,
+              }} />
+          );
+        })}
+      </div>
+      {history.length === 0 && (
+        <div className="text-[7px] text-white/15 text-center mt-0.5 tracking-widest">SESSION HEAT MAP · PLAY TO RECORD</div>
+      )}
+    </div>
+  );
+}
+
+/* ── Novel Feature 3: Key Match Badge ── */
+function KeyMatchBadge({ deckAKey, deckBKey }: { deckAKey?: string; deckBKey?: string }) {
+  if (!deckAKey || !deckBKey) return null;
+  const isSame = deckAKey === deckBKey;
+  const shareRoot = deckAKey.replace(/\s*(Major|Minor)/i, "").trim() === deckBKey.replace(/\s*(Major|Minor)/i, "").trim();
+  const compatible = isSame || shareRoot;
+  const color = isSame ? "#30d158" : compatible ? "#ffd60a" : "#ff453a";
+  const label = isSame ? "✓ Perfect Match" : compatible ? "~ Compatible" : "✗ Clash";
+  return (
+    <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border" data-testid="key-match-badge"
+      style={{ color, borderColor: `${color}40`, background: `${color}10` }}>
+      <span>{label}</span>
+    </div>
+  );
+}
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformLibraryBrowser } from "@/components/platform-library-browser";
@@ -179,6 +244,18 @@ export default function DJConsole() {
   const [activeDeck, setActiveDeck] = useState<DeckId>("A");
   const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
   const [jamendoLoadingTrackId, setJamendoLoadingTrackId] = useState<string | null>(null);
+  const [sessionHistory, setSessionHistory] = useState<number[]>([]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const playing = (engine.decks.A.isPlaying ? 1 : 0) + (engine.decks.B.isPlaying ? 1 : 0) +
+        (engine.decks.C?.isPlaying ? 0.5 : 0) + (engine.decks.D?.isPlaying ? 0.5 : 0);
+      if (playing > 0) {
+        setSessionHistory(prev => [...prev.slice(-79), playing]);
+      }
+    }, 4000);
+    return () => clearInterval(interval);
+  }, [engine.decks]);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -216,18 +293,23 @@ export default function DJConsole() {
   return (
     <div className="min-h-screen bg-[#0a0519] flex flex-col">
       <PerformanceRightsBanner />
+      <SessionHeatMap history={sessionHistory} />
       <header className="flex items-center justify-between px-4 py-2 border-b border-[#bf5af2]/10 bg-[#0a0519]/95 backdrop-blur-xl z-50">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate("/")} className="p-2 rounded-lg hover:bg-white/5 transition-colors" data-testid="button-back-home">
             <ArrowLeft className="w-5 h-5 text-white/60" />
           </button>
-          <Disc3 className="w-6 h-6 text-[#bf5af2] animate-vinyl-spin" />
+          <Disc3 className="w-6 h-6 text-[#e879f9] animate-vinyl-spin" />
           <div className="flex flex-col">
-            <span className="text-sm font-bold tracking-wider neon-text-purple" data-testid="text-console-title">DJ HYBRID PRO</span>
+            <span className="text-sm font-black tracking-wider" style={{ fontFamily: "'Oxanium', sans-serif", background: "linear-gradient(135deg, #e879f9, #818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid="text-console-title">NOVA MUSIC PRO</span>
             {activeEvent && (
               <span className="text-[9px] text-[#30d158] font-bold">🔴 LIVE: {activeEvent.name} · {activeEvent.code}</span>
             )}
           </div>
+        </div>
+        <div className="hidden md:flex items-center gap-2">
+          <BpmSyncRing deckAPlaying={engine.decks.A.isPlaying} deckBPlaying={engine.decks.B.isPlaying} />
+          <KeyMatchBadge deckAKey={engine.decks.A.detectedKey} deckBKey={engine.decks.B.detectedKey} />
         </div>
 
         <div className="flex items-center gap-1 bg-white/5 rounded-xl p-1 overflow-x-auto">

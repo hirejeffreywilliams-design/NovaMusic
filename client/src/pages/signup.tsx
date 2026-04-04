@@ -83,7 +83,7 @@ export default function SignupPage() {
       </header>
 
       <main className="max-w-lg mx-auto px-6 py-10">
-        <h2 className="text-2xl font-black text-white mb-2">Join DJ Hybrid</h2>
+        <h2 className="text-2xl font-black mb-2" style={{ fontFamily: "'Oxanium', sans-serif", background: "linear-gradient(135deg, #e879f9, #818cf8)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>Join Nova Music</h2>
         <p className="text-white/50 text-sm mb-8">Create a free account to unlock all features.</p>
 
         <form onSubmit={handleSubmit} className="space-y-6">

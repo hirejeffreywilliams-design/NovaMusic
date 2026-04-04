@@ -108,7 +108,7 @@ export default function Pricing() {
           </button>
           <div>
             <h1 className="text-2xl font-black text-white" data-testid="text-pricing-title">Choose Your Plan</h1>
-            <p className="text-white/40 text-sm">Unlock the full DJ Hybrid experience</p>
+            <p className="text-white/40 text-sm">Unlock the full Nova Music experience</p>
           </div>
         </div>
 

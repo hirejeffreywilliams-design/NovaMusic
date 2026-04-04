@@ -11,8 +11,126 @@ import { AIDJAssistant } from "@/components/ai-dj-assistant";
 import { SoundEffectsPad } from "@/components/sound-effects-pad";
 import {
   ArrowLeft, Play, Pause, Upload, HelpCircle,
-  Sparkles, Zap, ChevronRight, Settings,
+  Sparkles, Zap, ChevronRight, Settings, Globe,
 } from "lucide-react";
+
+/* ── Novel Feature 1: Crowd Vibe Meter ── */
+function VibeMeter({ energy }: { energy: number }) {
+  const level = Math.round(energy * 100);
+  const label = level < 30 ? "Warming Up 🌅" : level < 55 ? "Building 🔥" : level < 80 ? "LIT 🚀" : "PEAK ENERGY ⚡";
+  const color = level < 30 ? "#30d158" : level < 55 ? "#ffd60a" : level < 80 ? "#ff9500" : "#ff2d78";
+  return (
+    <div className="glass-panel rounded-2xl p-3 flex items-center gap-3" style={{ borderColor: `${color}20` }} data-testid="vibe-meter">
+      <div className="flex flex-col items-center gap-1 shrink-0">
+        <div className="text-[9px] font-black uppercase tracking-wider text-white/30">VIBE</div>
+        <div className="relative w-5 h-20 rounded-full overflow-hidden bg-white/5 border border-white/10">
+          <div className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-700"
+            style={{ height: `${level}%`, background: `linear-gradient(to top, ${color}, ${color}80)`, boxShadow: `0 0 8px ${color}` }} />
+        </div>
+        <div className="text-[9px] font-black" style={{ color }}>{level}%</div>
+      </div>
+      <div className="flex-1">
+        <div className="text-[11px] font-black text-white mb-1">{label}</div>
+        <div className="flex gap-0.5 h-6">
+          {Array.from({ length: 16 }).map((_, i) => {
+            const active = (i / 16) < energy;
+            return (
+              <div key={i} className="flex-1 rounded-full transition-all duration-300"
+                style={{
+                  background: active ? color : "rgba(255,255,255,0.05)",
+                  boxShadow: active ? `0 0 4px ${color}` : "none",
+                  transform: `scaleY(${active ? 0.4 + Math.abs(Math.sin(i * 0.8)) * 0.6 : 0.15})`,
+                  transformOrigin: "bottom",
+                }} />
+            );
+          })}
+        </div>
+        <div className="text-[9px] text-white/25 mt-1">Crowd Energy Meter</div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Novel Feature 2: Genre Roulette ── */
+const ROULETTE_GENRES = [
+  { name: "Amapiano", emoji: "🪘", color: "#ffd60a" },
+  { name: "Hip Hop", emoji: "🎤", color: "#ff2d78" },
+  { name: "Afrobeats", emoji: "🌍", color: "#30d158" },
+  { name: "Phonk", emoji: "💀", color: "#ff453a" },
+  { name: "EDM", emoji: "⚡", color: "#0af" },
+  { name: "R&B", emoji: "🎵", color: "#bf5af2" },
+  { name: "Latin", emoji: "🌴", color: "#ff9500" },
+  { name: "Drill", emoji: "🔫", color: "#64d2ff" },
+  { name: "K-Pop", emoji: "⭐", color: "#f472b6" },
+  { name: "Jersey Club", emoji: "🏙️", color: "#818cf8" },
+];
+
+function GenreRoulette() {
+  const [result, setResult] = useState<typeof ROULETTE_GENRES[0] | null>(null);
+  const [spinning, setSpinning] = useState(false);
+  const [displayIdx, setDisplayIdx] = useState(0);
+  const spin = () => {
+    if (spinning) return;
+    setSpinning(true);
+    setResult(null);
+    let count = 0;
+    const total = 18 + Math.floor(Math.random() * 10);
+    const tick = setInterval(() => {
+      setDisplayIdx(i => (i + 1) % ROULETTE_GENRES.length);
+      count++;
+      if (count >= total) {
+        clearInterval(tick);
+        const winner = ROULETTE_GENRES[Math.floor(Math.random() * ROULETTE_GENRES.length)];
+        setResult(winner);
+        setSpinning(false);
+      }
+    }, 80 + count * 2);
+  };
+  const shown = spinning ? ROULETTE_GENRES[displayIdx] : (result || ROULETTE_GENRES[0]);
+  return (
+    <div className="glass-panel rounded-2xl p-3 flex items-center gap-3" style={{ borderColor: "rgba(255,215,10,0.2)" }} data-testid="genre-roulette">
+      <div className="flex-1">
+        <div className="text-[9px] uppercase tracking-wider text-white/30 font-bold mb-1">🎲 Genre Roulette</div>
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-xl transition-all duration-75"
+            style={{ background: `${shown.color}20`, border: `1.5px solid ${shown.color}50` }}>
+            {shown.emoji}
+          </div>
+          <div>
+            <div className="text-sm font-black text-white transition-all duration-75">{shown.name}</div>
+            {result && !spinning && <div className="text-[9px] text-white/30">Play something in this genre!</div>}
+          </div>
+        </div>
+      </div>
+      <button onClick={spin} disabled={spinning}
+        className="px-3 py-1.5 rounded-xl text-[10px] font-black text-white transition-all active:scale-95 disabled:opacity-50"
+        style={{ background: spinning ? "rgba(255,215,10,0.2)" : "linear-gradient(135deg, #ffd60a, #ff9500)", boxShadow: spinning ? "none" : "0 0 15px rgba(255,215,10,0.4)" }}
+        data-testid="button-genre-roulette-spin">
+        {spinning ? "🌀 Spinning…" : "🎲 Spin!"}
+      </button>
+    </div>
+  );
+}
+
+/* ── Novel Feature 3: Emoji Storm Overlay ── */
+interface EmojiParticle { id: number; emoji: string; x: number; delay: number; duration: number; size: number }
+
+function EmojiStormOverlay({ particles }: { particles: EmojiParticle[] }) {
+  if (particles.length === 0) return null;
+  return (
+    <div className="fixed inset-0 pointer-events-none z-40 overflow-hidden" data-testid="emoji-storm">
+      {particles.map(p => (
+        <div key={p.id} className="absolute text-3xl select-none"
+          style={{
+            left: `${p.x}%`, top: "100%", fontSize: p.size,
+            animation: `float-up ${p.duration}s ease-out ${p.delay}s forwards`,
+          }}>
+          {p.emoji}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const PARTY_COLORS = ["#ff2d78", "#ff9500", "#ffd60a", "#30d158", "#0af", "#bf5af2", "#64d2ff", "#ff453a"];
 
@@ -380,6 +498,23 @@ export default function PartyMode() {
   const prevPlayingA = useRef(false);
   const prevPlayingB = useRef(false);
 
+  // Novel feature state
+  const [vibeEnergy, setVibeEnergy] = useState(0.35);
+  const [emojiParticles, setEmojiParticles] = useState<EmojiParticle[]>([]);
+  const emojiIdRef = useRef(0);
+
+  // Vibe meter oscillation — simulates crowd energy responding to music
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const isPlaying = engine.decks.A.isPlaying || engine.decks.B.isPlaying;
+      setVibeEnergy(prev => {
+        const target = isPlaying ? 0.4 + Math.random() * 0.55 : 0.1 + Math.random() * 0.2;
+        return prev + (target - prev) * 0.15 + (Math.random() - 0.5) * 0.05;
+      });
+    }, 800);
+    return () => clearInterval(interval);
+  }, [engine.decks.A.isPlaying, engine.decks.B.isPlaying]);
+
   const getAudioCtx = useCallback(() => {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -398,14 +533,35 @@ export default function PartyMode() {
     setTimeout(() => setConfetti((c) => c.filter((i) => !items.find((ni) => ni.id === i.id))), 2000);
   }, []);
 
+  const spawnEmojiStorm = useCallback((emojis: string[]) => {
+    const particles: EmojiParticle[] = Array.from({ length: 14 }, (_, i) => ({
+      id: emojiIdRef.current++,
+      emoji: emojis[Math.floor(Math.random() * emojis.length)],
+      x: 5 + Math.random() * 90,
+      delay: Math.random() * 0.6,
+      duration: 1.4 + Math.random() * 0.8,
+      size: 20 + Math.random() * 16,
+    }));
+    setEmojiParticles(p => [...p, ...particles]);
+    setTimeout(() => setEmojiParticles(p => p.filter(i => !particles.find(ni => ni.id === i.id))), 2500);
+  }, []);
+
   const handleFxPad = useCallback((index: number) => {
     const fx = PARTY_FX[index];
     const ctx = getAudioCtx();
     generatePartySound(ctx, fx.type, fx.freq);
     setActivePad(index);
     if (fx.type === "drop" || fx.type === "horn" || fx.type === "crowd") spawnConfetti();
+    // Emoji Storm per category
+    const stormMap: Record<FXPad["category"], string[]> = {
+      hype: ["🔥","🎉","💥","🙌","⚡","🎊"],
+      trending: ["🌍","🪘","💀","🏙️","🎵","🌴","⭐"],
+      tools: ["🎛️","🎵","💿","⏪","🚀"],
+      vibes: ["✨","💫","🎶","🌟","💫","🎸"],
+    };
+    spawnEmojiStorm(stormMap[fx.category]);
     setTimeout(() => setActivePad(null), 350);
-  }, [getAudioCtx, spawnConfetti]);
+  }, [getAudioCtx, spawnConfetti, spawnEmojiStorm]);
 
   const addFilesToQueue = useCallback(
     (files: FileList, deck: "A" | "B") => {
@@ -535,15 +691,16 @@ export default function PartyMode() {
         />
       ))}
 
+      <EmojiStormOverlay particles={emojiParticles} />
       {showTips && <BeginnerTips onClose={() => setShowTips(false)} />}
 
-      <header className="flex items-center justify-between px-4 py-3 bg-black/20 backdrop-blur-xl">
+      <header className="flex items-center justify-between px-4 py-3 bg-black/20 backdrop-blur-xl border-b border-white/5">
         <button onClick={() => navigate("/")} className="p-2 rounded-xl hover:bg-white/5 transition-colors" data-testid="button-party-back">
           <ArrowLeft className="w-5 h-5 text-white/50" />
         </button>
         <div className="flex items-center gap-2">
           <Sparkles className="w-5 h-5 text-[#ffd60a]" />
-          <span className="text-base font-black tracking-wider neon-text-pink" data-testid="text-party-title">PARTY MODE</span>
+          <span className="text-base font-black tracking-wider" style={{ fontFamily: "'Oxanium', sans-serif", background: "linear-gradient(135deg, #ff2d78, #ff9500)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid="text-party-title">NOVA PARTY</span>
           <Sparkles className="w-5 h-5 text-[#ffd60a]" />
         </div>
         <button
@@ -667,6 +824,9 @@ export default function PartyMode() {
           </div>
         </div>
 
+        {/* Novel Feature 1: Vibe Meter */}
+        <VibeMeter energy={Math.max(0, Math.min(1, vibeEnergy))} />
+
         <div className="flex gap-1 bg-white/5 rounded-2xl p-1">
           {sections.map(({ id, label, emoji }) => (
             <button
@@ -675,7 +835,7 @@ export default function PartyMode() {
               className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold transition-all ${
                 activeSection === id ? "bg-[#bf5af2] text-white" : "text-white/40 hover:text-white/60"
               }`}
-              style={activeSection === id ? { boxShadow: "0 0 15px rgba(191,90,242,0.4)" } : {}}
+              style={activeSection === id ? { boxShadow: "0 0 15px rgba(191,90,242,0.4)", fontFamily: "'Oxanium', sans-serif" } : {}}
               data-testid={`tab-party-${id}`}
             >
               <span className="text-sm">{emoji}</span>
@@ -686,6 +846,8 @@ export default function PartyMode() {
 
         {activeSection === "fx" && (
           <div className="space-y-3 animate-slide-in-up">
+            {/* Novel Feature 2: Genre Roulette */}
+            <GenreRoulette />
             <div className="flex items-center gap-2">
               <Zap className="w-4 h-4 text-[#ffd60a]" />
               <span className="text-sm font-bold text-white/80">Sound FX Library</span>
@@ -859,7 +1021,7 @@ export default function PartyMode() {
       </div>
 
       <footer className="text-center py-2 text-white/10 text-[9px] tracking-widest uppercase">
-        DJ Hybrid &middot; Party Mode &middot; Made for Everyone
+        Nova Music &middot; Party Mode &middot; Made for Everyone
       </footer>
     </div>
   );

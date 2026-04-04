@@ -1,5 +1,129 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Sparkles, Zap, ChevronRight, Loader2, Mic2, RotateCcw, ListMusic, ArrowRight, CheckCircle2, Play, Info } from "lucide-react";
+
+/* ── Novel Feature 1: Global Trend Radar ── */
+const GLOBAL_TRENDS_2025 = [
+  { genre: "Afrobeats", heat: 98, artist: "Burna Boy, Wizkid, Rema" },
+  { genre: "Amapiano", heat: 94, artist: "Kabza De Small, Focalistic" },
+  { genre: "Phonk", heat: 91, artist: "Ghostemane, Soudiere" },
+  { genre: "Jersey Club", heat: 88, artist: "DJ Smallz 732, Bandmanrill" },
+  { genre: "UK Drill", heat: 85, artist: "Central Cee, Headie One" },
+  { genre: "Hyperpop", heat: 80, artist: "100 gecs, Charli XCX" },
+  { genre: "K-Pop", heat: 77, artist: "BTS, BLACKPINK, Stray Kids" },
+];
+
+function GlobalTrendRadar() {
+  const [expanded, setExpanded] = useState(false);
+  const displayed = expanded ? GLOBAL_TRENDS_2025 : GLOBAL_TRENDS_2025.slice(0, 3);
+  return (
+    <div className="rounded-xl border border-white/8 overflow-hidden" data-testid="global-trend-radar">
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="w-full flex items-center justify-between px-3 py-2 hover:bg-white/5 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm">🌍</span>
+          <span className="text-[10px] font-black text-white/70 tracking-wider" style={{ fontFamily: "'Oxanium', sans-serif" }}>GLOBAL TREND RADAR</span>
+          <span className="text-[8px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: "#ff2d7820", color: "#ff2d78" }}>LIVE 2025</span>
+        </div>
+        <ChevronRight className={`w-3 h-3 text-white/30 transition-transform ${expanded ? "rotate-90" : ""}`} />
+      </button>
+      <div className="px-3 pb-2 space-y-1.5">
+        {displayed.map((t) => (
+          <div key={t.genre} className="flex items-center gap-2">
+            <div className="text-[9px] font-black text-white/60 w-16 shrink-0">{t.genre}</div>
+            <div className="flex-1 h-1 rounded-full bg-white/10 overflow-hidden">
+              <div className="h-full rounded-full" style={{
+                width: `${t.heat}%`,
+                background: t.heat > 90 ? "linear-gradient(90deg,#ff2d78,#ff9500)" : t.heat > 80 ? "linear-gradient(90deg,#ffd60a,#30d158)" : "linear-gradient(90deg,#818cf8,#0af)",
+              }} />
+            </div>
+            <span className="text-[8px] font-black text-white/30 w-6 text-right">{t.heat}</span>
+          </div>
+        ))}
+        {expanded && (
+          <div className="text-[8px] text-white/20 pt-1 italic">
+            Trending artists: {displayed.find(t => t.heat > 90)?.artist}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Novel Feature 2: Energy Curve Planner ── */
+function EnergyCurvePlanner({ deckABpm, deckBBpm }: { deckABpm?: number; deckBBpm?: number }) {
+  const bpmA = deckABpm || 120;
+  const bpmB = deckBBpm || 128;
+  const avg = (bpmA + bpmB) / 2;
+  const energyPct = Math.min(100, Math.round(((avg - 80) / 80) * 100));
+  const label = energyPct > 80 ? "🔥 PEAK" : energyPct > 60 ? "⚡ HIGH" : energyPct > 40 ? "🌊 MID" : "🌙 CHILL";
+  const color = energyPct > 80 ? "#ff453a" : energyPct > 60 ? "#ffd60a" : energyPct > 40 ? "#0af" : "#818cf8";
+  return (
+    <div className="px-3 py-2.5 rounded-xl border border-white/8 space-y-2" data-testid="energy-curve-planner">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-black text-white/60 tracking-wider" style={{ fontFamily: "'Oxanium', sans-serif" }}>⚡ ENERGY CURVE</span>
+        <span className="text-[9px] font-black px-2 py-0.5 rounded-full" style={{ background: `${color}20`, color }}>{label}</span>
+      </div>
+      <div className="flex items-end gap-0.5 h-8">
+        {Array.from({ length: 20 }, (_, i) => {
+          const curve = i < 5 ? 0.3 + i * 0.06 : i < 12 ? 0.6 + (i - 5) * 0.04 : i < 17 ? 0.88 - (i - 12) * 0.03 : 0.73;
+          const isNow = i === Math.min(19, Math.floor(energyPct / 5));
+          return (
+            <div key={i} className="flex-1 rounded-sm transition-all"
+              style={{
+                height: `${Math.round(curve * 100)}%`,
+                background: isNow ? color : `${color}40`,
+                boxShadow: isNow ? `0 0 6px ${color}` : "none",
+              }} />
+          );
+        })}
+      </div>
+      <div className="flex justify-between text-[7px] text-white/20">
+        <span>INTRO</span><span>BUILD</span><span>PEAK</span><span>DROP</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Novel Feature 3: Live Hype Score ── */
+function LiveHypeScore({ isAPlaying, isBPlaying, deckABpm, deckBBpm }: {
+  isAPlaying: boolean; isBPlaying: boolean; deckABpm?: number; deckBBpm?: number;
+}) {
+  const score = useMemo(() => {
+    let s = 0;
+    if (isAPlaying) s += 40;
+    if (isBPlaying) s += 40;
+    const bpmA = deckABpm || 0;
+    const bpmB = deckBBpm || 0;
+    if (bpmA > 0 && bpmB > 0) {
+      const diff = Math.abs(bpmA - bpmB);
+      s += diff < 3 ? 20 : diff < 8 ? 10 : 0;
+    }
+    return Math.min(100, s);
+  }, [isAPlaying, isBPlaying, deckABpm, deckBBpm]);
+
+  const color = score >= 90 ? "#ff2d78" : score >= 70 ? "#ffd60a" : score >= 50 ? "#0af" : "#ffffff40";
+  const label = score >= 90 ? "ON FIRE 🔥" : score >= 70 ? "HYPE ⚡" : score >= 50 ? "VIBING 🌊" : "STANDBY 💤";
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2 rounded-xl" style={{ background: `${color}0d`, border: `1px solid ${color}20` }} data-testid="live-hype-score">
+      <div className="relative w-8 h-8 shrink-0">
+        <svg viewBox="0 0 32 32" className="w-full h-full -rotate-90">
+          <circle cx="16" cy="16" r="12" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+          <circle cx="16" cy="16" r="12" fill="none" stroke={color} strokeWidth="3"
+            strokeDasharray={`${2 * Math.PI * 12 * score / 100} ${2 * Math.PI * 12 * (1 - score / 100)}`}
+            style={{ filter: `drop-shadow(0 0 4px ${color})`, transition: "stroke-dasharray 0.5s ease" }} />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-[8px] font-black" style={{ color }}>{score}</span>
+      </div>
+      <div>
+        <div className="text-[9px] font-black tracking-wider" style={{ color, fontFamily: "'Oxanium', sans-serif" }}>{label}</div>
+        <div className="text-[8px] text-white/25 mt-0.5">Live hype score</div>
+      </div>
+    </div>
+  );
+}
 
 interface TrackInfo {
   name: string;
@@ -276,6 +400,19 @@ export function AIDJAssistant({ deckA, deckB, queue, engine, compact = false }: 
 
         {mode === "home" && (
           <div className="space-y-2">
+            {/* Novel Feature 3: Live Hype Score */}
+            <LiveHypeScore
+              isAPlaying={deckA.isPlaying}
+              isBPlaying={deckB.isPlaying}
+              deckABpm={deckA.bpm}
+              deckBBpm={deckB.bpm}
+            />
+            {/* Novel Feature 1: Global Trend Radar */}
+            <GlobalTrendRadar />
+            {/* Novel Feature 2: Energy Curve Planner */}
+            {(deckA.bpm || deckB.bpm) && (
+              <EnergyCurvePlanner deckABpm={deckA.bpm} deckBBpm={deckB.bpm} />
+            )}
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={analyzePlaylist}

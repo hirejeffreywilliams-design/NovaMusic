@@ -518,12 +518,12 @@ export default function AIDJPage() {
 
   useEffect(() => {
     const titles: Record<typeof screen, string> = {
-      upload: "AI DJ Mode - Upload Your Music | DJ Hybrid PRO",
-      scanning: "Analyzing Your Tracks... | DJ Hybrid PRO",
-      setlist: "Your AI-Built Setlist | DJ Hybrid PRO",
-      playing: "Now Playing | DJ Hybrid PRO",
+      upload: "AI DJ Mode - Upload Your Music | Nova Music",
+      scanning: "Analyzing Your Tracks... | Nova Music",
+      setlist: "Your AI-Built Setlist | Nova Music",
+      playing: "Now Playing | Nova Music",
     };
-    document.title = titles[screen] || "AI DJ Mode | DJ Hybrid PRO";
+    document.title = titles[screen] || "AI DJ Mode | Nova Music";
   }, [screen]);
 
   const analyzeAudioBuffer = useCallback((audioBuffer: AudioBuffer): { duration: number; energy: number; fireZoneStart: number } => {

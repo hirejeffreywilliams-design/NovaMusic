@@ -121,7 +121,7 @@ export default function SetlistPage() {
         </div>
 
         <div className="text-center text-xs text-white/20 pb-4">
-          DJ Hybrid &middot; After-Party Setlist 🎉
+          Nova Music &middot; After-Party Setlist 🎉
         </div>
       </div>
     </div>
