@@ -7,7 +7,8 @@ import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
 import { CrowdHub } from "@/components/crowd-hub";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X, LibraryBig } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X, LibraryBig, ClipboardList } from "lucide-react";
+import { DJPrepStudio } from "@/components/dj-prep-studio";
 
 /* ── Novel Feature 1: BPM Sync Ring ── */
 function BpmSyncRing({ deckAName, deckBName, deckAPlaying, deckBPlaying }: {
@@ -120,7 +121,7 @@ function PerformanceRightsBanner() {
   );
 }
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "marketplace" | "library" | "settings";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "prep" | "crowd" | "marketplace" | "library" | "settings";
 
 interface ActiveEvent {
   id: string;
@@ -284,6 +285,7 @@ export default function DJConsole() {
     { id: "visualizer", label: "Visual", icon: Waves },
     { id: "mic", label: "Mic", icon: Mic2 },
     { id: "ai", label: "AI DJ", icon: Sparkles },
+    { id: "prep", label: "Prep Studio", icon: ClipboardList },
     { id: "library", label: "Free Music", icon: LibraryBig },
     { id: "crowd", label: "Crowd Hub", icon: Users },
     { id: "marketplace", label: "Market", icon: ShoppingBag },
@@ -451,6 +453,12 @@ export default function DJConsole() {
             />
           </div>
         )}
+        {activeTab === "prep" && (
+          <div className="h-full overflow-hidden p-1">
+            <DJPrepStudio />
+          </div>
+        )}
+
         {activeTab === "crowd" && (
           <div className="max-w-2xl mx-auto pt-2 pb-4 overflow-y-auto h-full">
             {!activeEvent ? (

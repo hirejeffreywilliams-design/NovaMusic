@@ -856,7 +856,7 @@ export default function Landing() {
                       <p className="text-xs text-white/40">Full 4-deck mixing experience</p>
                     </div>
                     <div className="flex flex-wrap gap-1.5 justify-center">
-                      {["4 Decks","FX Rack","Battle Mode"].map(t => (
+                      {["4 Decks","FX Rack","Prep Studio"].map(t => (
                         <span key={t} className="text-[9px] px-2 py-0.5 rounded-full border"
                           style={{ background: "rgba(191,90,242,0.1)", color: "#bf5af2", borderColor: "rgba(191,90,242,0.25)" }}>{t}</span>
                       ))}
@@ -866,18 +866,32 @@ export default function Landing() {
               </div>
 
               {/* Quick-access row */}
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: "Free Music", icon: "🎵", path: "/marketplace", color: "#30d158" },
-                  { label: "Pricing", icon: "⭐", path: "/pricing", color: "#ffd60a" },
-                  { label: "Artist Upload", icon: "🎤", path: "/signup", color: "#e879f9" },
-                ].map(({ label, icon, path, color }) => (
-                  <button key={path} onClick={() => navigate(path)}
-                    className="rounded-2xl py-3 px-2 text-center transition-all hover:scale-[1.04]"
+                  { label: "Prep Studio", icon: "📋", path: "/console?tab=prep", color: "#e879f9", desc: "Plan your gigs" },
+                  { label: "Free Music", icon: "🎵", path: "/marketplace", color: "#30d158", desc: "Browse tracks" },
+                  { label: "Pricing", icon: "⭐", path: "/pricing", color: "#ffd60a", desc: "Upgrade plan" },
+                  { label: "Artist Upload", icon: "🎤", path: "/signup", color: "#818cf8", desc: "Sell your music" },
+                ].map(({ label, icon, path, color, desc }) => (
+                  <button key={path} onClick={() => {
+                    if (path.includes("?tab=prep")) {
+                      navigate("/console");
+                      setTimeout(() => {
+                        const btn = document.querySelector('[data-testid="tab-prep"]') as HTMLButtonElement;
+                        btn?.click();
+                      }, 500);
+                    } else {
+                      navigate(path);
+                    }
+                  }}
+                    className="rounded-2xl py-3 px-3 text-left transition-all hover:scale-[1.03] flex items-center gap-3"
                     style={{ background: `${color}0d`, border: `1px solid ${color}22` }}
-                    data-testid={`button-nav-${label.toLowerCase().replace(" ", "-")}`}>
-                    <div className="text-xl mb-1">{icon}</div>
-                    <div className="text-[10px] font-semibold tracking-wide" style={{ color }}>{label}</div>
+                    data-testid={`button-nav-${label.toLowerCase().replace(/\s/g, "-")}`}>
+                    <div className="text-2xl shrink-0">{icon}</div>
+                    <div>
+                      <div className="text-[11px] font-black tracking-wide" style={{ color }}>{label}</div>
+                      <div className="text-[9px] text-white/28">{desc}</div>
+                    </div>
                   </button>
                 ))}
               </div>

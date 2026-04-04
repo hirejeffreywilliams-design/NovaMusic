@@ -5,7 +5,7 @@
 Nova Music (formerly DJ Hybrid) is a browser-based DJ mixing platform with three distinct experiences:
 
 1. **AI DJ Mode** — Upload your music library, AI analyzes BPM/key/genre detection, Fire Zone identification, smart setlist planning, and automated mixing. Features: Global Trend Radar (2024–2025 genre heat rankings), Energy Curve Planner (visualizes set arc), and Live Hype Score (real-time crowd energy indicator).
-2. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer. Features: BPM Sync Ring (deck status indicator), Session Heat Map (energy timeline), and Key Match Badge (harmonic compatibility display).
+2. **DJ Console (Pro)** — Full 4-deck mixer with advanced EQ, FX rack, soundboard pads, and 6-mode visualizer. Features: BPM Sync Ring (deck status indicator), Session Heat Map (energy timeline), Key Match Badge (harmonic compatibility display), and **DJ Prep Studio** (pre-gig setlist builder with genre crates, energy arc, gig planner, pre-gig checklist, and AI Jeff pre-show briefing).
 3. **Party Mode** — Simplified, mobile-first DJ experience for parties. Features: VibeMeter (crowd energy gauge), Genre Roulette (spinning genre selector), and Emoji Storm (emoji burst overlays on FX pad presses).
 
 The app uses a galactic/futuristic design with deep space backgrounds (#03030c), neon color palette (nova purple #e879f9, indigo #818cf8, sky blue #38bdf8, pink #ff2d78), animated cosmic effects, Oxanium font for headers, and the tagline "GALACTIC SOUND SYSTEM".
