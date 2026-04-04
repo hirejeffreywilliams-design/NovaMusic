@@ -1,18 +1,20 @@
 import { useState, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
-import { useAudioEngine } from "@/hooks/use-audio-engine";
+import { useAudioEngine, type DeckId } from "@/hooks/use-audio-engine";
 import { DeckPanel } from "@/components/deck-panel";
 import { MixerPanel } from "@/components/mixer-panel";
 import { SoundboardPanel } from "@/components/soundboard-panel";
 import { VisualizerPanel } from "@/components/visualizer-panel";
 import { FXPanel } from "@/components/fx-panel";
 import { CrowdHub } from "@/components/crowd-hub";
-import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X } from "lucide-react";
+import { ArrowLeft, Disc3, Maximize2, Minimize2, LayoutGrid, Waves, Music, Sliders, Mic2, Settings, Sparkles, Circle, Download, Users, ShoppingBag, FileText, X, LibraryBig } from "lucide-react";
 import { Microphone } from "@/components/microphone";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformLibraryBrowser } from "@/components/platform-library-browser";
 import type { PlatformTrack } from "@/components/platform-library-browser";
 import { AIDJAssistant } from "@/components/ai-dj-assistant";
+import { JamendoMusicLibrary } from "@/components/jamendo-music-library";
+import type { JamendoTrack } from "@/components/jamendo-music-library";
 import { useMutation } from "@tanstack/react-query";
 import { getStableDjId } from "@/lib/utils";
 import { apiRequest } from "@/lib/queryClient";
@@ -53,7 +55,7 @@ function PerformanceRightsBanner() {
   );
 }
 
-type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "marketplace" | "settings";
+type ViewTab = "decks" | "soundboard" | "visualizer" | "fx" | "mic" | "ai" | "crowd" | "marketplace" | "library" | "settings";
 
 interface ActiveEvent {
   id: string;
@@ -176,6 +178,7 @@ export default function DJConsole() {
   const [fullscreen, setFullscreen] = useState(false);
   const [activeDeck, setActiveDeck] = useState<DeckId>("A");
   const [activeEvent, setActiveEvent] = useState<ActiveEvent | null>(null);
+  const [jamendoLoadingTrackId, setJamendoLoadingTrackId] = useState<string | null>(null);
 
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
@@ -187,6 +190,16 @@ export default function DJConsole() {
     }
   }, []);
 
+  const handleJamendoLoad = useCallback(async (track: JamendoTrack, deck: DeckId) => {
+    setJamendoLoadingTrackId(track.id);
+    try {
+      const streamUrl = `/api/jamendo/stream?id=${track.id}`;
+      await engine.loadFile(streamUrl, deck, `${track.name} — ${track.artist}`);
+    } finally {
+      setJamendoLoadingTrackId(null);
+    }
+  }, [engine]);
+
   const tabs: { id: ViewTab; label: string; icon: any; badge?: number }[] = [
     { id: "decks", label: "Decks", icon: LayoutGrid },
     { id: "fx", label: "FX Rack", icon: Sliders },
@@ -194,6 +207,7 @@ export default function DJConsole() {
     { id: "visualizer", label: "Visual", icon: Waves },
     { id: "mic", label: "Mic", icon: Mic2 },
     { id: "ai", label: "AI DJ", icon: Sparkles },
+    { id: "library", label: "Free Music", icon: LibraryBig },
     { id: "crowd", label: "Crowd Hub", icon: Users },
     { id: "marketplace", label: "Market", icon: ShoppingBag },
     { id: "settings", label: "Setup", icon: Settings },
@@ -370,6 +384,22 @@ export default function DJConsole() {
                 getAudioCtx={engine.getCtx}
               />
             )}
+          </div>
+        )}
+
+        {activeTab === "library" && (
+          <div className="h-full max-h-full overflow-hidden flex flex-col px-1 pb-2">
+            <div className="mb-3">
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <LibraryBig className="w-4 h-4 text-[#bf5af2]" />
+                Free Music Library
+              </h3>
+              <p className="text-[11px] text-white/40 mt-0.5">Search and load royalty-free tracks directly into your decks</p>
+            </div>
+            <JamendoMusicLibrary
+              onLoadToDeck={handleJamendoLoad}
+              loadingTrackId={jamendoLoadingTrackId}
+            />
           </div>
         )}
 

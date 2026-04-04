@@ -723,7 +723,7 @@ export function useAudioEngine() {
     }
   }, []);
 
-  const loadFile = useCallback(async (file: File | string, which: DeckId) => {
+  const loadFile = useCallback(async (file: File | string, which: DeckId, displayName?: string) => {
     const ctx = getCtx();
     let arrayBuffer: ArrayBuffer;
     let fileName: string;
@@ -731,10 +731,10 @@ export function useAudioEngine() {
     if (typeof file === "string") {
       const response = await fetch(file);
       arrayBuffer = await response.arrayBuffer();
-      fileName = file.split("/").pop() || "Remote Track";
+      fileName = displayName || file.split("/").pop() || "Remote Track";
     } else {
       arrayBuffer = await file.arrayBuffer();
-      fileName = file.name;
+      fileName = displayName || file.name;
     }
 
     const buffer = await ctx.decodeAudioData(arrayBuffer);

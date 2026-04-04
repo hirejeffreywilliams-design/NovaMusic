@@ -1,6 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
+import { Readable } from "stream";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
@@ -1035,6 +1036,116 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
 
   registerAIDJRoutes(app);
   registerPlatformRoutes(app);
+
+  // --- Jamendo Free Music Library ---
+
+  interface JamendoTrackResult {
+    id: string;
+    name: string;
+    artist_name: string;
+    album_image: string;
+    image: string;
+    audio: string;
+    duration: number;
+    license_ccurl: string;
+    musicinfo?: {
+      tags?: {
+        genres?: string[];
+        instruments?: string[];
+        vartags?: string[];
+      };
+    };
+  }
+
+  interface JamendoApiResponse {
+    headers?: { results_count?: number };
+    results: JamendoTrackResult[];
+  }
+
+  app.get("/api/jamendo/search", async (req: Request, res: Response) => {
+    const clientId = process.env.JAMENDO_CLIENT_ID;
+    if (!clientId) {
+      return res.status(500).json({ error: "Jamendo client ID not configured" });
+    }
+
+    const { q = "", genre = "", mood = "", limit = "20", offset = "0" } = req.query as Record<string, string>;
+
+    const clampedLimit = Math.min(Math.max(parseInt(limit, 10) || 20, 1), 50).toString();
+    const clampedOffset = Math.max(parseInt(offset, 10) || 0, 0).toString();
+
+    const params = new URLSearchParams({
+      client_id: clientId,
+      format: "json",
+      limit: clampedLimit,
+      offset: clampedOffset,
+      include: "musicinfo",
+      imagesize: "200",
+      audioformat: "mp31",
+    });
+
+    if (q.trim()) params.set("namesearch", q.trim());
+    const tagParts = [genre.trim(), mood.trim()].filter(Boolean);
+    if (tagParts.length > 0) params.set("tags", tagParts.join("+"));
+
+    try {
+      const response = await fetch(`https://api.jamendo.com/v3.0/tracks/?${params.toString()}`);
+      if (!response.ok) {
+        return res.status(response.status).json({ error: "Jamendo API error" });
+      }
+      const data: JamendoApiResponse = await response.json();
+      const tracks = (data.results || []).map((t: JamendoTrackResult) => ({
+        id: t.id,
+        name: t.name,
+        artist: t.artist_name,
+        albumArt: t.album_image || t.image,
+        duration: t.duration,
+        genre: t.musicinfo?.tags?.genres?.join(", ") ?? "",
+        mood: t.musicinfo?.tags?.vartags?.join(", ") ?? "",
+        license: t.license_ccurl,
+      }));
+      return res.json({ tracks, total: data.headers?.results_count ?? tracks.length });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch from Jamendo";
+      return res.status(500).json({ error: message });
+    }
+  });
+
+  app.get("/api/jamendo/stream", async (req: Request, res: Response) => {
+    const clientId = process.env.JAMENDO_CLIENT_ID;
+    if (!clientId) return res.status(500).json({ error: "Jamendo client ID not configured" });
+
+    const { id } = req.query as Record<string, string>;
+    if (!id) return res.status(400).json({ error: "Track id required" });
+
+    try {
+      const params = new URLSearchParams({
+        client_id: clientId,
+        format: "json",
+        id,
+        audioformat: "mp31",
+      });
+      const response = await fetch(`https://api.jamendo.com/v3.0/tracks/?${params.toString()}`);
+      if (!response.ok) return res.status(response.status).json({ error: "Jamendo API error" });
+      const data: JamendoApiResponse = await response.json();
+      const track = data.results?.[0];
+      if (!track) return res.status(404).json({ error: "Track not found" });
+
+      const audioResp = await fetch(track.audio);
+      if (!audioResp.ok) return res.status(502).json({ error: "Failed to fetch audio" });
+      if (!audioResp.body) return res.status(502).json({ error: "No audio body received" });
+
+      const contentType = audioResp.headers.get("content-type") ?? "audio/mpeg";
+      const contentLength = audioResp.headers.get("content-length");
+      res.setHeader("Content-Type", contentType);
+      if (contentLength) res.setHeader("Content-Length", contentLength);
+      res.setHeader("Cache-Control", "public, max-age=3600");
+
+      Readable.fromWeb(audioResp.body as Parameters<typeof Readable.fromWeb>[0]).pipe(res);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Stream error";
+      return res.status(500).json({ error: message });
+    }
+  });
 
   return httpServer;
 }
