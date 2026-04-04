@@ -8,6 +8,7 @@ import { SongQueue, QueuedSong } from "@/components/song-queue";
 import { AudioOutput } from "@/components/audio-output";
 import { PlatformSync } from "@/components/platform-sync";
 import { AIDJAssistant } from "@/components/ai-dj-assistant";
+import { SoundEffectsPad } from "@/components/sound-effects-pad";
 import {
   ArrowLeft, Play, Pause, Upload, HelpCircle,
   Sparkles, Zap, ChevronRight, Settings,
@@ -354,7 +355,7 @@ function generatePartySound(ctx: AudioContext, type: string, freq: number) {
   }
 }
 
-type PartySection = "mix" | "fx" | "mic" | "ai" | "settings";
+type PartySection = "mix" | "fx" | "soundpad" | "mic" | "ai" | "settings";
 
 export default function PartyMode() {
   const [, navigate] = useLocation();
@@ -509,6 +510,7 @@ export default function PartyMode() {
   const sections: { id: PartySection; label: string; emoji: string }[] = [
     { id: "mix", label: "Mix", emoji: "🎛️" },
     { id: "fx", label: "Sound FX", emoji: "⚡" },
+    { id: "soundpad", label: "Pad", emoji: "🎛️" },
     { id: "mic", label: "Mic", emoji: "🎙️" },
     { id: "ai", label: "AI DJ", emoji: "✨" },
     { id: "settings", label: "Setup", emoji: "⚙️" },
@@ -740,6 +742,15 @@ export default function PartyMode() {
               </div>
             )}
             <TipBubble text="Try Trending sounds to add global flavor! Amapiano & Phonk are massive right now 🌍" />
+          </div>
+        )}
+
+        {activeSection === "soundpad" && (
+          <div className="animate-slide-in-up space-y-3">
+            <div className="glass-panel rounded-2xl p-4" style={{ borderColor: "rgba(191,90,242,0.15)" }}>
+              <SoundEffectsPad audioCtxGetter={engine.getCtx} getMasterNode={engine.getMasterInputNode} />
+            </div>
+            <TipBubble text="Record or upload your own clips to the pads! Add pitch or reverb effects, save clip packs to reuse at future events 🎛️" />
           </div>
         )}
 

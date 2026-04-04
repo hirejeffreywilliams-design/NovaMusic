@@ -48,6 +48,8 @@ interface WSClient {
   type: WSClientType;
   eventId: string;
   name?: string;
+  listenerId?: string;
+  joinedAt: number;
 }
 
 const rooms = new Map<string, Set<WSClient>>();
@@ -130,26 +132,104 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
   // --- WebSocket Server ---
   const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
-  wss.on("connection", (ws, req) => {
+  const verifiedDjConnections = new WeakSet<WebSocket>();
+  const activeBroadcasts = new Set<string>();
+
+  wss.on("connection", async (ws, req) => {
     const url = new URL(req.url!, `http://${req.headers.host}`);
     const eventId = url.searchParams.get("eventId") || "";
-    const clientType = (url.searchParams.get("type") || "crowd") as WSClientType;
+    const clientTypeRaw = (url.searchParams.get("type") || "crowd") as WSClientType;
     const clientName = url.searchParams.get("name") || "";
+    const djId = url.searchParams.get("djId") || "";
+    const listenerId = url.searchParams.get("listenerId") || `l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const client: WSClient = { ws, type: clientType, eventId, name: clientName };
+    let clientType = clientTypeRaw;
+
+    if (clientTypeRaw === "dj" && eventId) {
+      const event = await storage.getEvent(eventId);
+      if (!event || event.djId !== djId) {
+        clientType = "crowd";
+      } else {
+        verifiedDjConnections.add(ws);
+      }
+    }
+
+    const client: WSClient = { ws, type: clientType, eventId, name: clientName, listenerId, joinedAt: Date.now() };
     const clients = getRoomClients(eventId);
     clients.add(client);
+
+    // Broadcast updated listener list on join
+    if (eventId) {
+      const listeners = Array.from(clients)
+        .filter(c => c.type === "crowd" && c.name)
+        .map(c => ({ name: c.name!, joinedAt: c.joinedAt }));
+      broadcastToAll(eventId, { type: "listener_update", count: listeners.length, listeners });
+      // Notify late-joining listener if DJ is already broadcasting
+      if (clientType === "crowd" && activeBroadcasts.has(eventId) && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: "rtc_broadcasting" }));
+      }
+    }
 
     ws.on("message", (rawData) => {
       try {
         const msg = JSON.parse(rawData.toString());
         if (msg.type === "ping") ws.send(JSON.stringify({ type: "pong" }));
+        const isDjVerified = verifiedDjConnections.has(ws);
+        if (msg.type === "crowd_sing" && isDjVerified) {
+          broadcastToCrowd(eventId, { type: "crowd_sing", line: msg.line });
+        }
+        if (msg.type === "lyrics_line" && isDjVerified) {
+          broadcastToCrowd(eventId, { type: "lyrics_line", lineIndex: msg.lineIndex });
+        }
+        if (msg.type === "tip_goal_update" && isDjVerified && typeof msg.tipGoal === "number") {
+          broadcastToAll(eventId, { type: "tip_goal_update", tipGoal: msg.tipGoal });
+        }
+        // WebRTC signaling relay (per-listener)
+        if (msg.type === "rtc_broadcasting" && isDjVerified) {
+          activeBroadcasts.add(eventId);
+          broadcastToCrowd(eventId, { type: "rtc_broadcasting" });
+        }
+        if (msg.type === "rtc_stopped" && isDjVerified) {
+          activeBroadcasts.delete(eventId);
+          broadcastToCrowd(eventId, { type: "rtc_stopped" });
+        }
+        if (msg.type === "rtc_request_offer" && !isDjVerified) {
+          broadcastToDJ(eventId, { type: "rtc_request_offer", fromListener: listenerId });
+        }
+        if (msg.type === "rtc_offer" && isDjVerified && msg.toListener) {
+          const target = Array.from(clients).find(c => c.listenerId === msg.toListener);
+          if (target && target.ws.readyState === WebSocket.OPEN) {
+            target.ws.send(JSON.stringify({ type: "rtc_offer", sdp: msg.sdp }));
+          }
+        }
+        if (msg.type === "rtc_answer" && !isDjVerified) {
+          broadcastToDJ(eventId, { type: "rtc_answer", sdp: msg.sdp, fromListener: listenerId });
+        }
+        if (msg.type === "rtc_ice" && isDjVerified && msg.toListener) {
+          const target = Array.from(clients).find(c => c.listenerId === msg.toListener);
+          if (target && target.ws.readyState === WebSocket.OPEN) {
+            target.ws.send(JSON.stringify({ type: "rtc_ice", candidate: msg.candidate }));
+          }
+        }
+        if (msg.type === "rtc_ice" && !isDjVerified) {
+          broadcastToDJ(eventId, { type: "rtc_ice", candidate: msg.candidate, fromListener: listenerId });
+        }
       } catch (_) {}
     });
 
     ws.on("close", () => {
       clients.delete(client);
+      if (verifiedDjConnections.has(ws)) {
+        activeBroadcasts.delete(eventId);
+        broadcastToCrowd(eventId, { type: "rtc_stopped" });
+      }
       if (clients.size === 0) rooms.delete(eventId);
+      else {
+        const listeners = Array.from(clients)
+          .filter(c => c.type === "crowd" && c.name)
+          .map(c => ({ name: c.name!, joinedAt: c.joinedAt }));
+        broadcastToAll(eventId, { type: "listener_update", count: listeners.length, listeners });
+      }
     });
   });
 
@@ -450,8 +530,10 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
       const { fromName, amount } = req.body;
       if (!fromName || !amount || amount <= 0) return res.status(400).json({ error: "fromName and amount > 0 required" });
       const tip = await storage.createTip({ eventId: event.id, fromName, amount: parseFloat(amount) });
+      const allTips = await storage.getEventTips(event.id);
+      const totalTips = allTips.reduce((s, t) => s + t.amount, 0);
       broadcastToDJ(event.id, { type: "new_tip", tip });
-      broadcastToAll(event.id, { type: "tip_received", fromName, amount: tip.amount });
+      broadcastToAll(event.id, { type: "tip_received", fromName, amount: tip.amount, totalTips, tipId: tip.id });
       return res.json(tip);
     } catch (e: any) {
       return res.status(500).json({ error: e.message });

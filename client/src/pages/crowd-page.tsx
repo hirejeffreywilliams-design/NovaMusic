@@ -3,8 +3,17 @@ import { useParams } from "wouter";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { Event, SongRequest, Poll, Shoutout, Leaderboard } from "@shared/schema";
+import { TipAnimationOverlay, TipGoalBar, TipLeaderboard, type TipEvent } from "@/components/tip-animation-overlay";
+import { LyricsPanel } from "@/components/lyrics-panel";
+import { PartyRoomListener } from "@/components/party-room-listener";
+import { useWebRTCBroadcast } from "@/hooks/use-webrtc-broadcast";
 
 const EMOJI_REACTIONS = ["🔥", "🌊", "❤️", "🚀"];
+
+interface ListenerInfo {
+  name: string;
+  joinedAt: number;
+}
 
 function EnergyMeter({ rpm }: { rpm: number }) {
   const max = 20;
@@ -53,6 +62,7 @@ function LeaderboardPanel({ eventCode }: { eventCode: string }) {
 export default function CrowdPage() {
   const { eventCode } = useParams<{ eventCode: string }>();
   const qc = useQueryClient();
+  const listenerIdRef = useRef(`l-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
   const [crowdName, setCrowdName] = useState("");
   const [nameEntered, setNameEntered] = useState(false);
   const [nameInput, setNameInput] = useState("");
@@ -72,8 +82,34 @@ export default function CrowdPage() {
   const [requestDone, setRequestDone] = useState(false);
   const [battleVotes, setBattleVotes] = useState<{ A: number; B: number }>({ A: 0, B: 0 });
   const [battleVoted, setBattleVoted] = useState(false);
+
+  const [tipEvent, setTipEvent] = useState<TipEvent | null>(null);
+  const [totalTips, setTotalTips] = useState(0);
+  const [tipGoal, setTipGoal] = useState(0);
+  const [sessionTips, setSessionTips] = useState<{ fromName: string; amount: number; createdAt: number }[]>([]);
+  const [crowdSingLine, setCrowdSingLine] = useState<string | null>(null);
+  const [remoteLyricsLine, setRemoteLyricsLine] = useState<number | null>(null);
+  const [listenerCount, setListenerCount] = useState(0);
+  const [listeners, setListeners] = useState<ListenerInfo[]>([]);
+
+  const [liveWs, setLiveWs] = useState<WebSocket | null>(null);
+  const [analyzerData, setAnalyzerData] = useState<Uint8Array | null>(null);
   const emojiIdRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
+  const tipIdRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+
+  const { getAnalyzerData } = useWebRTCBroadcast(liveWs, false);
+
+  useEffect(() => {
+    const loop = () => {
+      const data = getAnalyzerData();
+      if (data) setAnalyzerData(new Uint8Array(data));
+      rafRef.current = requestAnimationFrame(loop);
+    };
+    rafRef.current = requestAnimationFrame(loop);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [getAnalyzerData]);
 
   const { data: eventData } = useQuery<Event>({
     queryKey: ["/api/events", eventCode],
@@ -82,15 +118,14 @@ export default function CrowdPage() {
     refetchInterval: 30000,
   });
 
-  // Calculate reactions per minute for energy meter
   const rpm = reactions.filter(r => Date.now() - r.ts < 60000).length;
 
-  // WebSocket connection
   useEffect(() => {
     if (!eventData?.id) return;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws?eventId=${eventData.id}&type=crowd&name=${encodeURIComponent(crowdName)}`);
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws?eventId=${eventData.id}&type=crowd&name=${encodeURIComponent(crowdName)}&listenerId=${listenerIdRef.current}`);
     wsRef.current = ws;
+    setLiveWs(ws);
 
     ws.onmessage = (e) => {
       try {
@@ -113,18 +148,33 @@ export default function CrowdPage() {
         if (msg.type === "reaction") setReactions(prev => [...prev.slice(-99), { emoji: msg.reaction.emoji, ts: msg.reaction.createdAt }]);
         if (msg.type === "battle_vote") setBattleVotes(msg.voteCount);
         if (msg.type === "tip_received") {
-          // Show a brief tip notification in the crowd feed
+          const te: TipEvent = { fromName: msg.fromName, amount: msg.amount, id: `tip-${tipIdRef.current++}` };
+          setTipEvent(te);
+          setTotalTips(msg.totalTips || 0);
+          setSessionTips(prev => [...prev, { fromName: msg.fromName, amount: msg.amount, createdAt: Date.now() }]);
           setReactions(prev => [...prev.slice(-99), { emoji: "💸", ts: Date.now() }]);
+        }
+        if (msg.type === "crowd_sing") {
+          setCrowdSingLine(msg.line);
+          setTimeout(() => setCrowdSingLine(null), 5000);
+        }
+        if (msg.type === "lyrics_line") {
+          setRemoteLyricsLine(msg.lineIndex);
+        }
+        if (msg.type === "listener_update") {
+          setListenerCount(msg.count || 0);
+          setListeners(msg.listeners || []);
+        }
+        if (msg.type === "tip_goal_update" && typeof msg.tipGoal === "number") {
+          setTipGoal(msg.tipGoal);
         }
       } catch (_) {}
     };
 
-    ws.onclose = () => { wsRef.current = null; };
-
+    ws.onclose = () => { wsRef.current = null; setLiveWs(null); };
     return () => { ws.close(); };
   }, [eventData?.id, crowdName]);
 
-  // Initialize mood/nowPlaying from event
   useEffect(() => {
     if (eventData) {
       if (eventData.moodColor) setMoodColor(eventData.moodColor);
@@ -239,7 +289,8 @@ export default function CrowdPage() {
       className="min-h-screen relative overflow-hidden"
       style={{ background: moodColor && moodPulse ? moodColor + "30" : "linear-gradient(160deg, #0d0520 0%, #1a0535 40%, #0a1530 80%, #0a0519 100%)", transition: "background 1s ease" }}
     >
-      {/* Floating emoji reactions */}
+      <TipAnimationOverlay tipEvent={tipEvent} totalTips={totalTips} tipGoal={tipGoal > 0 ? tipGoal : undefined} />
+
       {recentEmojis.map(e => (
         <div
           key={e.id}
@@ -254,7 +305,6 @@ export default function CrowdPage() {
         </div>
       ))}
 
-      {/* Mood Board overlay */}
       {moodColor && moodKeyword && moodPulse && (
         <div
           className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none"
@@ -268,8 +318,24 @@ export default function CrowdPage() {
         </div>
       )}
 
+      {crowdSingLine && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+          <div
+            className="text-center px-8 py-6 rounded-3xl mx-4"
+            style={{
+              background: "rgba(255,214,10,0.15)",
+              border: "2px solid rgba(255,214,10,0.5)",
+              backdropFilter: "blur(20px)",
+              animation: "scale-in 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards",
+            }}
+          >
+            <div className="text-xs font-black text-[#ffd60a] uppercase tracking-widest mb-2">🎤 SING ALONG!</div>
+            <div className="text-2xl font-black text-white" style={{ textShadow: "0 0 30px #ffd60a" }}>{crowdSingLine}</div>
+          </div>
+        </div>
+      )}
+
       <div className="relative z-10 max-w-sm mx-auto p-4 pb-8 space-y-4">
-        {/* Header */}
         <div className="text-center py-2">
           <div className="text-xs text-white/30 uppercase tracking-wider mb-1">{crowdName} @ {eventData.name}</div>
           {nowPlaying && (
@@ -286,12 +352,17 @@ export default function CrowdPage() {
           )}
         </div>
 
-        {/* Energy Meter */}
+        <PartyRoomListener
+          listenerCount={listenerCount}
+          listeners={listeners}
+          nowPlaying={nowPlaying}
+          analyzerData={analyzerData}
+        />
+
         <div className="glass-card rounded-2xl p-4">
           <EnergyMeter rpm={rpm} />
         </div>
 
-        {/* Emoji Reactions */}
         <div className="glass-card rounded-2xl p-4 space-y-2">
           <div className="text-[10px] font-black uppercase tracking-wider text-white/40">React Now!</div>
           <div className="grid grid-cols-4 gap-2">
@@ -309,7 +380,13 @@ export default function CrowdPage() {
           </div>
         </div>
 
-        {/* Paid Actions Disclaimer */}
+        <LyricsPanel
+          nowPlaying={nowPlaying}
+          isDJ={false}
+          crowdSingLine={crowdSingLine}
+          remoteLineIndex={remoteLyricsLine}
+        />
+
         <div
           className="rounded-xl px-3 py-2.5 text-[10px] text-white/50 leading-relaxed"
           style={{ background: "rgba(255,214,10,0.06)", border: "1px solid rgba(255,214,10,0.12)" }}
@@ -318,7 +395,6 @@ export default function CrowdPage() {
           ℹ️ Priority requests, shoutouts, and tips are <strong className="text-white/70">non-refundable</strong>. Your display name is visible to the DJ and other participants.
         </div>
 
-        {/* Song Request */}
         <div className="glass-card rounded-2xl p-4 space-y-3">
           <div className="text-[10px] font-black uppercase tracking-wider text-[#bf5af2]">🎵 Request a Song</div>
           <input
@@ -351,7 +427,6 @@ export default function CrowdPage() {
           </div>
         </div>
 
-        {/* Active Poll */}
         {activePoll && activePoll.active && (
           <div className="glass-card rounded-2xl p-4 space-y-3" data-testid="poll-panel">
             <div className="text-[10px] font-black uppercase tracking-wider text-[#0af]">📊 DJ Poll</div>
@@ -379,7 +454,6 @@ export default function CrowdPage() {
           </div>
         )}
 
-        {/* Tip */}
         <div className="glass-card rounded-2xl p-4 space-y-3">
           <div className="text-[10px] font-black uppercase tracking-wider text-[#30d158]">💸 Tip the DJ</div>
           <div className="flex gap-2">
@@ -399,6 +473,9 @@ export default function CrowdPage() {
               </button>
             ))}
           </div>
+          <div className="text-[9px] text-white/30 text-center">
+            {tipAmount >= 10 ? "👑 MEGA TIP — triggers full celebration!" : tipAmount >= 5 ? "🔥 Big tip — BIG animation!" : tipAmount >= 2 ? "⭐ Medium tip — name flash!" : "💚 Small tip — floating coins"}
+          </div>
           <button
             onClick={() => tipMutation.mutate(tipAmount)}
             disabled={tipMutation.isPending}
@@ -408,9 +485,11 @@ export default function CrowdPage() {
           >
             {tipDone ? <span data-testid="text-tip-done">✓ Tip Sent! Thanks!</span> : `Send $${tipAmount} Tip 💚`}
           </button>
+          {sessionTips.length > 0 && (
+            <TipLeaderboard tips={sessionTips} compact />
+          )}
         </div>
 
-        {/* Shoutout */}
         <div className="glass-card rounded-2xl p-4 space-y-3">
           <div className="text-[10px] font-black uppercase tracking-wider text-[#ff9500]">📣 Shoutout</div>
           <textarea
@@ -443,7 +522,6 @@ export default function CrowdPage() {
           </div>
         </div>
 
-        {/* Battle Mode */}
         {eventData.battleMode && (
           <div className="glass-card rounded-2xl p-4 space-y-3" data-testid="battle-panel">
             <div className="text-[10px] font-black uppercase tracking-wider text-[#ff2d78]">⚔️ DJ Battle — Who's Hotter?</div>
@@ -475,7 +553,6 @@ export default function CrowdPage() {
           </div>
         )}
 
-        {/* Leaderboard */}
         <LeaderboardPanel eventCode={eventCode!} />
       </div>
     </div>

@@ -2,8 +2,11 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Volume2, Check, X, Plus, QrCode, Users, Zap, Music, Star, Crown } from "lucide-react";
+import { Loader2, Volume2, Check, X, Plus, QrCode, Users, Zap, Music, Star, Crown, Radio } from "lucide-react";
 import type { Event, SongRequest, Poll, Shoutout, Tip, Leaderboard } from "@shared/schema";
+import { TipGoalBar, TipLeaderboard, TipAnimationOverlay, type TipEvent } from "@/components/tip-animation-overlay";
+import { LyricsPanel } from "@/components/lyrics-panel";
+import { useWebRTCBroadcast } from "@/hooks/use-webrtc-broadcast";
 
 const MOOD_PRESETS = [
   { color: "#ff2d78", keyword: "HYPE" },
@@ -139,9 +142,11 @@ interface CrowdHubProps {
   djId?: string;
   djName?: string;
   nowPlaying?: string;
+  getMasterNode?: () => AudioNode | null;
+  getAudioCtx?: () => AudioContext | null;
 }
 
-export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlaying }: CrowdHubProps) {
+export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlaying, getMasterNode, getAudioCtx }: CrowdHubProps) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<"requests" | "polls" | "shoutouts" | "tips" | "leaderboard" | "mood" | "battle">("requests");
@@ -151,7 +156,18 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
   const [aiCoachAlert, setAiCoachAlert] = useState<string | null>(null);
   const [nowPlayingInput, setNowPlayingInput] = useState(nowPlaying || "");
   const [battleVotes, setBattleVotes] = useState<{ A: number; B: number }>({ A: 0, B: 0 });
+  const [tipEvent, setTipEvent] = useState<TipEvent | null>(null);
+  const [totalTipsWs, setTotalTipsWs] = useState(0);
+  const [sessionTips, setSessionTips] = useState<{ fromName: string; amount: number; createdAt: number }[]>([]);
+  const [listenerCount, setListenerCount] = useState(0);
+  const [tipGoal, setTipGoal] = useState(50);
+  const [tipGoalInput, setTipGoalInput] = useState("50");
+  const [isBroadcasting, setIsBroadcasting] = useState(false);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const tipIdRef = useRef(0);
   const wsRef = useRef<WebSocket | null>(null);
+
+  const { startBroadcast, stopBroadcast } = useWebRTCBroadcast(ws, true);
 
   const crowdUrl = eventCode ? `${window.location.origin}/party/${eventCode}` : "";
   const rpm = reactions.filter(r => Date.now() - r.ts < 60000).length;
@@ -160,8 +176,10 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
   useEffect(() => {
     if (!eventId) return;
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws?eventId=${eventId}&type=dj&name=${encodeURIComponent(djName || "DJ")}`);
-    wsRef.current = ws;
+    const newWs = new WebSocket(`${protocol}//${window.location.host}/ws?eventId=${eventId}&type=dj&djId=${encodeURIComponent(djId || "")}&name=${encodeURIComponent(djName || "DJ")}`);
+    wsRef.current = newWs;
+    setWs(newWs);
+    const ws = newWs;
 
     ws.onmessage = (e) => {
       try {
@@ -179,6 +197,12 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
         if (msg.type === "new_tip") {
           qc.invalidateQueries({ queryKey: ["/api/events", eventId, "state"] });
           toast({ title: "💸 Tip Received!", description: `$${msg.tip.amount} from ${msg.tip.fromName}` });
+          const te: TipEvent = { fromName: msg.tip.fromName, amount: msg.tip.amount, id: `tip-${tipIdRef.current++}` };
+          setTipEvent(te);
+          setSessionTips(prev => [...prev, { fromName: msg.tip.fromName, amount: msg.tip.amount, createdAt: Date.now() }]);
+        }
+        if (msg.type === "tip_received") {
+          setTotalTipsWs(msg.totalTips || 0);
         }
         if (msg.type === "poll_vote") {
           qc.invalidateQueries({ queryKey: ["/api/events", eventId, "state"] });
@@ -192,10 +216,13 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
         if (msg.type === "battle_vote") {
           setBattleVotes(msg.voteCount);
         }
+        if (msg.type === "listener_update") {
+          setListenerCount(msg.count || 0);
+        }
       } catch (_) {}
     };
 
-    return () => { ws.close(); };
+    return () => { ws.close(); setWs(null); };
   }, [eventId, djName, qc, toast]);
 
   const { data: stateData } = useQuery({
@@ -265,6 +292,18 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
     }
   };
 
+  const sendCrowdSing = useCallback((line: string) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "crowd_sing", line }));
+    }
+  }, []);
+
+  const sendLyricsLine = useCallback((lineIndex: number) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "lyrics_line", lineIndex }));
+    }
+  }, []);
+
   const pendingRequests = stateData?.requests?.filter((r: SongRequest) => r.status === "pending") || [];
   const activePoll = stateData?.polls?.find((p: Poll) => p.active);
   const unnouncedShoutouts = stateData?.shoutouts?.filter((s: Shoutout) => !s.announced) || [];
@@ -293,6 +332,8 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
 
   return (
     <div className="space-y-4 h-full overflow-auto">
+      <TipAnimationOverlay tipEvent={tipEvent} tipGoal={tipGoal} totalTips={totalTipsWs || totalTips} />
+
       {/* AI Coach Alert */}
       {aiCoachAlert && (
         <div className="rounded-2xl p-4 flex items-start gap-3 animate-slide-in-up" style={{ background: "rgba(255,214,10,0.12)", border: "1.5px solid rgba(255,214,10,0.35)" }}>
@@ -312,7 +353,7 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
       <div className="grid grid-cols-2 gap-3">
         <div className="glass-card rounded-2xl p-4 space-y-3">
           <EnergyMeter rpm={rpm} />
-          <div className="grid grid-cols-2 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-2 text-center">
             <div className="py-2 rounded-xl" style={{ background: "rgba(48,209,88,0.1)" }}>
               <div className="text-sm font-black text-[#30d158]">${totalTips.toFixed(2)}</div>
               <div className="text-[9px] text-white/35">Tips</div>
@@ -321,7 +362,50 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
               <div className="text-sm font-black text-[#bf5af2]">{stateData?.reactions?.length || 0}</div>
               <div className="text-[9px] text-white/35">Reactions</div>
             </div>
+            <div className="py-2 rounded-xl" style={{ background: "rgba(0,170,255,0.1)" }}>
+              <div className="text-sm font-black text-[#0af]">{listenerCount}</div>
+              <div className="text-[9px] text-white/35">Live</div>
+            </div>
           </div>
+          {/* Live Audio Broadcast */}
+          <button
+            data-testid="button-go-live"
+            onClick={async () => {
+              if (isBroadcasting) {
+                stopBroadcast();
+                setIsBroadcasting(false);
+              } else {
+                try {
+                  let stream: MediaStream | null = null;
+                  let masterDest: MediaStreamAudioDestinationNode | undefined;
+                  const ctx = getAudioCtx?.();
+                  const masterNode = getMasterNode?.();
+                  if (ctx && masterNode) {
+                    masterDest = ctx.createMediaStreamDestination();
+                    masterNode.connect(masterDest);
+                    stream = masterDest.stream;
+                  }
+                  if (!stream || stream.getAudioTracks().length === 0) {
+                    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                    masterDest = undefined;
+                  }
+                  await startBroadcast(stream, masterDest);
+                  setIsBroadcasting(true);
+                } catch (err) {
+                  toast({ title: "Mic access denied", description: "Allow microphone access to broadcast live audio.", variant: "destructive" });
+                }
+              }
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all"
+            style={{
+              background: isBroadcasting ? "rgba(255,45,120,0.25)" : "rgba(48,209,88,0.15)",
+              border: isBroadcasting ? "1px solid rgba(255,45,120,0.5)" : "1px solid rgba(48,209,88,0.3)",
+              color: isBroadcasting ? "#ff2d78" : "#30d158",
+            }}
+          >
+            <Radio className={`w-3.5 h-3.5 ${isBroadcasting ? "animate-pulse" : ""}`} />
+            {isBroadcasting ? "Broadcasting Live — Stop" : "Go Live (Broadcast Audio)"}
+          </button>
           {/* Now Playing Input */}
           <div className="space-y-2">
             <div className="text-[9px] text-white/30 uppercase tracking-wider">Now Playing</div>
@@ -543,11 +627,45 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
       )}
 
       {activeTab === "tips" && (
-        <div className="space-y-2">
-          <div className="rounded-xl p-3 text-center" style={{ background: "rgba(48,209,88,0.08)", border: "1px solid rgba(48,209,88,0.2)" }}>
-            <div className="text-xl font-black text-[#30d158]">${totalTips.toFixed(2)}</div>
-            <div className="text-[10px] text-white/40">Total Tips (85% yours = ${(totalTips * 0.85).toFixed(2)})</div>
+        <div className="space-y-3">
+          <div className="rounded-xl p-3" style={{ background: "rgba(48,209,88,0.08)", border: "1px solid rgba(48,209,88,0.2)" }}>
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <div className="text-xl font-black text-[#30d158]">${totalTips.toFixed(2)}</div>
+                <div className="text-[10px] text-white/40">85% yours = ${(totalTips * 0.85).toFixed(2)}</div>
+              </div>
+              <div className="flex items-center gap-1">
+                <input
+                  type="number"
+                  value={tipGoalInput}
+                  onChange={e => setTipGoalInput(e.target.value)}
+                  className="w-16 px-2 py-1 rounded-lg text-xs bg-white/5 border border-white/15 text-white text-center focus:outline-none"
+                  placeholder="Goal"
+                  data-testid="input-tip-goal"
+                />
+                <button
+                  onClick={() => {
+                    const g = parseInt(tipGoalInput);
+                    if (g > 0) {
+                      setTipGoal(g);
+                      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                        wsRef.current.send(JSON.stringify({ type: "tip_goal_update", tipGoal: g }));
+                      }
+                    }
+                  }}
+                  className="px-2 py-1 rounded-lg text-[9px] font-bold text-white"
+                  style={{ background: "rgba(48,209,88,0.3)", border: "1px solid rgba(48,209,88,0.4)" }}
+                  data-testid="button-set-tip-goal"
+                >Set Goal</button>
+              </div>
+            </div>
+            {tipGoal > 0 && <TipGoalBar goal={tipGoal} total={totalTipsWs || totalTips} label="SESSION GOAL" />}
           </div>
+          {sessionTips.length > 0 && (
+            <div className="rounded-xl p-3" style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,214,10,0.15)" }}>
+              <TipLeaderboard tips={sessionTips} />
+            </div>
+          )}
           {allTips.length === 0 ? (
             <div className="text-center text-white/25 text-sm py-6">No tips yet.</div>
           ) : (
@@ -591,6 +709,12 @@ export function CrowdHub({ eventId, eventCode, eventName, djId, djName, nowPlayi
 
       {activeTab === "mood" && (
         <div className="space-y-3">
+          <LyricsPanel
+            nowPlaying={nowPlayingInput || nowPlaying}
+            isDJ
+            onCrowdSing={sendCrowdSing}
+            onLineChange={sendLyricsLine}
+          />
           <div className="text-[10px] text-white/40 uppercase tracking-wider">Set Crowd Mood</div>
           <div className="grid grid-cols-3 gap-2">
             {MOOD_PRESETS.map(({ color, keyword }) => (

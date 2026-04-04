@@ -366,6 +366,8 @@ export default function DJConsole() {
                 eventName={activeEvent.name}
                 djId={activeEvent.djId}
                 djName={activeEvent.djName}
+                getMasterNode={engine.getMasterInputNode}
+                getAudioCtx={engine.getCtx}
               />
             )}
           </div>
