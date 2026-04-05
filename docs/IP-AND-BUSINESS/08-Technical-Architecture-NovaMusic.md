@@ -640,3 +640,137 @@ The following source files contain the primary novel implementations correspondi
 *Owner: Jeffrey W. Williams / Jeffrey W. Williams LLC*
 *Entity: OmniDLOS Holdings*
 *CONFIDENTIAL — Owner Eyes Only*
+
+---
+
+## OMNISCRIPT ARCHITECTURE INTEGRATION
+
+> © 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.
+
+### OmniScript as the Cognitive Layer of NovaMusic AI-Powered Music Creation & DJ Intelligence Platform
+
+**NovaMusic AI-Powered Music Creation & DJ Intelligence Platform** is architected on **OmniScript** — the proprietary domain-specific language (`.omni`) of the OmniDLOS ecosystem. OmniScript compiles to an optimized TypeScript/JavaScript runtime and serves as the Cognitive Layer through which all platform computation, communication, and data persistence is expressed.
+
+#### OmniScript System Architecture
+
+```
+NovaMusic AI-Powered Music Creation & DJ Intelligence Platform — OmniScript Architecture
+├── universe SonicCreationUniverse/
+│   ├── engine BeatFusionEngine.omni          ← Primary computation engine
+│   ├── engine MixMasterEngine.omni                         ← Supporting engine
+│   ├── engine SonicDNAEngine.omni                          ← Supporting engine
+│   ├── engine CreatorRevenueEngine.omni                    ← Supporting engine
+│   ├── service BeatGenerationService.omni                   ← Service layer
+│   ├── service MixOptimizationService.omni                  ← Service layer
+│   ├── service RoyaltyDistributionService.omni              ← Service layer
+│   ├── portals/                               ← Nexus Point declarations
+│   │   ├── open-portals.omni                  ← REST API (Open Portal) endpoints
+│   │   └── pulse-channels.omni               ← WebSocket (Pulse Channel) connections
+│   └── vaults/                               ← Data Vault schemas
+│       ├── primary.vault.omni                 ← Primary data vault
+│       └── archive.vault.omni                 ← Immutable legacy archive
+├── omni.manifest                              ← OmniVault package manifest
+└── .omnirc                                    ← OmniScript runtime configuration
+```
+
+#### OmniScript Engine Declarations
+
+Each major subsystem of NovaMusic AI-Powered Music Creation & DJ Intelligence Platform is declared as an OmniScript `engine` — a typed, composable computation unit registered in the OmniVault package registry:
+
+| Engine | Role | OmniScript Pattern |
+|---|---|---|
+| `BeatFusionEngine` | Primary computation — implements the core patented algorithm | `engine BeatFusionEngine implements Intelligent` |
+| `MixMasterEngine` | Supporting computation unit | `engine MixMasterEngine` |
+| `SonicDNAEngine` | Supporting computation unit | `engine SonicDNAEngine` |
+| `CreatorRevenueEngine` | Supporting computation unit | `engine CreatorRevenueEngine` |
+
+#### Nexus Point Architecture (OmniDLOS API Layer)
+
+All external integrations are declared as **Nexus Points** in OmniScript — the proprietary OmniDLOS term for API interfaces:
+
+| Nexus Point Type | OmniScript Declaration | Usage |
+|---|---|---|
+| Open Portal (REST) | `portal OpenPortal<NovaMusicAPI>` | Standard HTTP/REST communication |
+| Pulse Channel (WebSocket) | `pulse PulseChannel<LiveFeed>` | Real-time bidirectional data streaming |
+| Forge Link (internal RPC) | `portal ForgeLink<InternalBus>` | High-speed typed inter-service communication |
+| Echo Signal (Webhook) | `portal EchoSignal<EventHook>` | Outbound event notification system |
+
+#### Guardian Layer Security Model
+
+All sensitive operations in NovaMusic AI-Powered Music Creation & DJ Intelligence Platform are protected by OmniScript's **Guardian Layer** decorator system:
+
+```omni
+// Guardian Layer access control
+@Guardian(level: 5)         // Requires clearance level 5 of 10
+@Dimension(Dimension.EMOTIONAL)
+@Audit(trail: AuditTrail.FULL)
+manifest flow sensitiveScoringOperation(userId: Text): flow<SecureResult> {
+  // Operation protected by Guardian Layer — unauthorized access raises QuantumFault
+}
+```
+
+| Guardian Level | Access Tier | Applied To |
+|---|---|---|
+| Level 1–2 | Public Nexus Points | Open data read operations |
+| Level 3–4 | Authenticated user operations | Profile reads, standard queries |
+| Level 5–6 | Premium / verified operations | Core algorithm execution |
+| Level 7–8 | Admin operations | Configuration changes, data exports |
+| Level 9–10 | Owner / root operations | Vault management, Guardian administration |
+
+#### Cross-Dimensional Bus Integration
+
+NovaMusic AI-Powered Music Creation & DJ Intelligence Platform participates in the OmniDLOS **Inter-Dimensional Bus** (`Nova.Bus`) — enabling real-time Signal exchange with all 12 other OmniDLOS platforms:
+
+```omni
+// Emit a Signal to the cross-dimensional bus
+Nova.Bus.emit("platform.event.type", {
+  platformId: "NovaMusic",
+  universe: "SonicCreationUniverse",
+  dimension: Dimension.EMOTIONAL,
+  payload: eventData
+})
+
+// Receive Signals from other dimensions
+drift signal in Nova.Bus.receive(channel: "cross-dimensional") {
+  when (signal.dimension == Dimension.EMOTIONAL) {
+    handleIncomingSignal(signal)
+  }
+}
+```
+
+#### OmniScript Code Sample — Core Engine
+
+```omni
+// NovaMusic — Beat Fusion & Sonic DNA Engine
+universe SonicCreationUniverse {
+  dimension: Dimension.EMOTIONAL
+  vibe: Vibe.SONIC
+
+  engine BeatFusionEngine implements Intelligent {
+    manifest flow generateBeat(emotionDNA: EmotionProfile, genre: Text): flow<BeatConstruct> {
+      forge palette = sync SonicDNAEngine.mapEmotionToPalette(emotionDNA)
+      forge beat    = sync BeatGenerationService.compose(palette, genre)
+      Nova.Bus.emit("beat.created", { creatorId: emotionDNA.userId, beatId: beat.id })
+      propagate beat
+    }
+
+    manifest flow optimizeMix(tracks: Constellation<AudioTrack>, targetVibe: Vibe): flow<MixPlan> {
+      forge plan = sync MixOptimizationService.analyze(tracks, targetVibe)
+      propagate plan
+    }
+  }
+
+  service CreatorRevenueEngine {
+    @Guardian(level: 3)
+    manifest flow distributeRoyalties(beat: BeatConstruct, streams: Integer): flow<RevenueRecord> {
+      forge revenue = sync RoyaltyDistributionService.compute(beat, streams)
+      sync Nova.Vault.archive("royalty.record", revenue)
+      propagate revenue
+    }
+  }
+}
+```
+
+© 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.
+
+---

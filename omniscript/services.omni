@@ -1,0 +1,590 @@
+// NovaMusic/omniscript/services.omni
+// Service Declarations — The Sonic Dimension
+// © 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.
+// CONFIDENTIAL — Owner Eyes Only.
+
+draw { Nova } from "nova:std"
+draw { Signal, Status, Priority, Timestamp, Duration } from "nova:std/types"
+draw { Service, RequestContext, QueryFilter } from "nova:std/service"
+draw { DataVault } from "nova:std/data"
+
+
+/// OpenAI-powered AI DJ assistant for setlist planning and transition guidance
+@service(
+  id: "aidj-svc",
+  platform: "NovaMusic",
+  shield: ShieldLevel.MAXIMUM
+)
+service AIDJService {
+
+  @inject forge vault: DataVault<Any>
+  @inject forge auth: Nova.Auth
+  @inject forge bus: Nova.Bus
+
+  @portal(endpoint: "novamusic.aidj.get")
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: StandardRequestSchema)
+  manifest getAll(
+    ctx:    RequestContext,
+    filter: QueryFilter?
+  ): flow<Constellation<Any>> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge results = sync this.vault.query({
+      owner:  identity.userId,
+      filter: filter ?? QueryFilter.none(),
+      limit:  100
+    })
+
+    Nova.Metrics.pulse("novamusic.aidjservice.get", 1.0)
+    propagate results
+  }
+
+  @portal(endpoint: "novamusic.aidj.create")
+  @audit
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: CreateRequestSchema)
+  manifest create(
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge entry = sync this.vault.store({
+      ...input,
+      id:        Nova.Crypto.uuid(),
+      ownerId:   identity.userId,
+      createdAt: Timestamp.now(),
+      status:    Status.ACTIVE
+    })
+
+    // Broadcast creation signal via IDB
+    Nova.Bus.emit("novamusic.aidj.created", Signal {
+      topic:   "novamusic.aidj.created",
+      payload: { entryId: entry.id, userId: identity.userId },
+      origin:  "novamusic",
+      priority: Priority.NORMAL
+    })
+
+    Nova.Metrics.pulse("novamusic.aidjservice.create", 1.0)
+    propagate entry
+  }
+
+  @portal(endpoint: "novamusic.aidj.update")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest update(
+    id:    Text,
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+    forge existing = sync this.vault.get(id)
+    when (existing == nil) {
+      fault ResourceNotFound { resource: "AIDJ", id }
+    }
+
+    forge updated = sync this.vault.update(id, {
+      ...input,
+      updatedAt: Timestamp.now(),
+      updatedBy: identity.userId
+    })
+
+    propagate updated
+  }
+
+  @portal(endpoint: "novamusic.aidj.delete")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest dissolve(id: Text, ctx: RequestContext): flow<nil> {
+    forge identity = sync this.auth.verify(ctx)
+    sync this.vault.softDelete(id, identity.userId)
+    Nova.Metrics.pulse("novamusic.aidjservice.delete", 1.0)
+    propagate nil
+  }
+}
+
+/// Sound Constellation management, upload, and metadata indexing
+@service(
+  id: "tracklibrary-svc",
+  platform: "NovaMusic",
+  shield: ShieldLevel.HIGH
+)
+service TrackLibraryService {
+
+  @inject forge vault: DataVault<Any>
+  @inject forge auth: Nova.Auth
+  @inject forge bus: Nova.Bus
+
+  @portal(endpoint: "novamusic.tracklibrary.get")
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: StandardRequestSchema)
+  manifest getAll(
+    ctx:    RequestContext,
+    filter: QueryFilter?
+  ): flow<Constellation<Any>> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge results = sync this.vault.query({
+      owner:  identity.userId,
+      filter: filter ?? QueryFilter.none(),
+      limit:  100
+    })
+
+    Nova.Metrics.pulse("novamusic.tracklibraryservice.get", 1.0)
+    propagate results
+  }
+
+  @portal(endpoint: "novamusic.tracklibrary.create")
+  @audit
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: CreateRequestSchema)
+  manifest create(
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge entry = sync this.vault.store({
+      ...input,
+      id:        Nova.Crypto.uuid(),
+      ownerId:   identity.userId,
+      createdAt: Timestamp.now(),
+      status:    Status.ACTIVE
+    })
+
+    // Broadcast creation signal via IDB
+    Nova.Bus.emit("novamusic.tracklibrary.created", Signal {
+      topic:   "novamusic.tracklibrary.created",
+      payload: { entryId: entry.id, userId: identity.userId },
+      origin:  "novamusic",
+      priority: Priority.NORMAL
+    })
+
+    Nova.Metrics.pulse("novamusic.tracklibraryservice.create", 1.0)
+    propagate entry
+  }
+
+  @portal(endpoint: "novamusic.tracklibrary.update")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest update(
+    id:    Text,
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+    forge existing = sync this.vault.get(id)
+    when (existing == nil) {
+      fault ResourceNotFound { resource: "TrackLibrary", id }
+    }
+
+    forge updated = sync this.vault.update(id, {
+      ...input,
+      updatedAt: Timestamp.now(),
+      updatedBy: identity.userId
+    })
+
+    propagate updated
+  }
+
+  @portal(endpoint: "novamusic.tracklibrary.delete")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest dissolve(id: Text, ctx: RequestContext): flow<nil> {
+    forge identity = sync this.auth.verify(ctx)
+    sync this.vault.softDelete(id, identity.userId)
+    Nova.Metrics.pulse("novamusic.tracklibraryservice.delete", 1.0)
+    propagate nil
+  }
+}
+
+/// Live and recorded Sonic Session orchestration and archiving
+@service(
+  id: "sonicsession-svc",
+  platform: "NovaMusic",
+  shield: ShieldLevel.HIGH
+)
+service SonicSessionService {
+
+  @inject forge vault: DataVault<Any>
+  @inject forge auth: Nova.Auth
+  @inject forge bus: Nova.Bus
+
+  @portal(endpoint: "novamusic.sonicsession.get")
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: StandardRequestSchema)
+  manifest getAll(
+    ctx:    RequestContext,
+    filter: QueryFilter?
+  ): flow<Constellation<Any>> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge results = sync this.vault.query({
+      owner:  identity.userId,
+      filter: filter ?? QueryFilter.none(),
+      limit:  100
+    })
+
+    Nova.Metrics.pulse("novamusic.sonicsessionservice.get", 1.0)
+    propagate results
+  }
+
+  @portal(endpoint: "novamusic.sonicsession.create")
+  @audit
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: CreateRequestSchema)
+  manifest create(
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge entry = sync this.vault.store({
+      ...input,
+      id:        Nova.Crypto.uuid(),
+      ownerId:   identity.userId,
+      createdAt: Timestamp.now(),
+      status:    Status.ACTIVE
+    })
+
+    // Broadcast creation signal via IDB
+    Nova.Bus.emit("novamusic.sonicsession.created", Signal {
+      topic:   "novamusic.sonicsession.created",
+      payload: { entryId: entry.id, userId: identity.userId },
+      origin:  "novamusic",
+      priority: Priority.NORMAL
+    })
+
+    Nova.Metrics.pulse("novamusic.sonicsessionservice.create", 1.0)
+    propagate entry
+  }
+
+  @portal(endpoint: "novamusic.sonicsession.update")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest update(
+    id:    Text,
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+    forge existing = sync this.vault.get(id)
+    when (existing == nil) {
+      fault ResourceNotFound { resource: "SonicSession", id }
+    }
+
+    forge updated = sync this.vault.update(id, {
+      ...input,
+      updatedAt: Timestamp.now(),
+      updatedBy: identity.userId
+    })
+
+    propagate updated
+  }
+
+  @portal(endpoint: "novamusic.sonicsession.delete")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest dissolve(id: Text, ctx: RequestContext): flow<nil> {
+    forge identity = sync this.auth.verify(ctx)
+    sync this.vault.softDelete(id, identity.userId)
+    Nova.Metrics.pulse("novamusic.sonicsessionservice.delete", 1.0)
+    propagate nil
+  }
+}
+
+/// Signal Leaderboard ranking by Sonic Session performance scores
+@service(
+  id: "leaderboard-svc",
+  platform: "NovaMusic",
+  shield: ShieldLevel.STANDARD
+)
+service LeaderboardService {
+
+  @inject forge vault: DataVault<Any>
+  @inject forge auth: Nova.Auth
+  @inject forge bus: Nova.Bus
+
+  @portal(endpoint: "novamusic.leaderboard.get")
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: StandardRequestSchema)
+  manifest getAll(
+    ctx:    RequestContext,
+    filter: QueryFilter?
+  ): flow<Constellation<Any>> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge results = sync this.vault.query({
+      owner:  identity.userId,
+      filter: filter ?? QueryFilter.none(),
+      limit:  100
+    })
+
+    Nova.Metrics.pulse("novamusic.leaderboardservice.get", 1.0)
+    propagate results
+  }
+
+  @portal(endpoint: "novamusic.leaderboard.create")
+  @audit
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: CreateRequestSchema)
+  manifest create(
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge entry = sync this.vault.store({
+      ...input,
+      id:        Nova.Crypto.uuid(),
+      ownerId:   identity.userId,
+      createdAt: Timestamp.now(),
+      status:    Status.ACTIVE
+    })
+
+    // Broadcast creation signal via IDB
+    Nova.Bus.emit("novamusic.leaderboard.created", Signal {
+      topic:   "novamusic.leaderboard.created",
+      payload: { entryId: entry.id, userId: identity.userId },
+      origin:  "novamusic",
+      priority: Priority.NORMAL
+    })
+
+    Nova.Metrics.pulse("novamusic.leaderboardservice.create", 1.0)
+    propagate entry
+  }
+
+  @portal(endpoint: "novamusic.leaderboard.update")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest update(
+    id:    Text,
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+    forge existing = sync this.vault.get(id)
+    when (existing == nil) {
+      fault ResourceNotFound { resource: "Leaderboard", id }
+    }
+
+    forge updated = sync this.vault.update(id, {
+      ...input,
+      updatedAt: Timestamp.now(),
+      updatedBy: identity.userId
+    })
+
+    propagate updated
+  }
+
+  @portal(endpoint: "novamusic.leaderboard.delete")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest dissolve(id: Text, ctx: RequestContext): flow<nil> {
+    forge identity = sync this.auth.verify(ctx)
+    sync this.vault.softDelete(id, identity.userId)
+    Nova.Metrics.pulse("novamusic.leaderboardservice.delete", 1.0)
+    propagate nil
+  }
+}
+
+/// Sound Artifact licensing, Signal Creator profiles, and revenue distribution
+@service(
+  id: "artistmarketpla-svc",
+  platform: "NovaMusic",
+  shield: ShieldLevel.STANDARD
+)
+service ArtistMarketplaceService {
+
+  @inject forge vault: DataVault<Any>
+  @inject forge auth: Nova.Auth
+  @inject forge bus: Nova.Bus
+
+  @portal(endpoint: "novamusic.artistmarketplace.get")
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: StandardRequestSchema)
+  manifest getAll(
+    ctx:    RequestContext,
+    filter: QueryFilter?
+  ): flow<Constellation<Any>> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge results = sync this.vault.query({
+      owner:  identity.userId,
+      filter: filter ?? QueryFilter.none(),
+      limit:  100
+    })
+
+    Nova.Metrics.pulse("novamusic.artistmarketplaceservice.get", 1.0)
+    propagate results
+  }
+
+  @portal(endpoint: "novamusic.artistmarketplace.create")
+  @audit
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: CreateRequestSchema)
+  manifest create(
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge entry = sync this.vault.store({
+      ...input,
+      id:        Nova.Crypto.uuid(),
+      ownerId:   identity.userId,
+      createdAt: Timestamp.now(),
+      status:    Status.ACTIVE
+    })
+
+    // Broadcast creation signal via IDB
+    Nova.Bus.emit("novamusic.artistmarketplace.created", Signal {
+      topic:   "novamusic.artistmarketplace.created",
+      payload: { entryId: entry.id, userId: identity.userId },
+      origin:  "novamusic",
+      priority: Priority.NORMAL
+    })
+
+    Nova.Metrics.pulse("novamusic.artistmarketplaceservice.create", 1.0)
+    propagate entry
+  }
+
+  @portal(endpoint: "novamusic.artistmarketplace.update")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest update(
+    id:    Text,
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+    forge existing = sync this.vault.get(id)
+    when (existing == nil) {
+      fault ResourceNotFound { resource: "ArtistMarketplace", id }
+    }
+
+    forge updated = sync this.vault.update(id, {
+      ...input,
+      updatedAt: Timestamp.now(),
+      updatedBy: identity.userId
+    })
+
+    propagate updated
+  }
+
+  @portal(endpoint: "novamusic.artistmarketplace.delete")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest dissolve(id: Text, ctx: RequestContext): flow<nil> {
+    forge identity = sync this.auth.verify(ctx)
+    sync this.vault.softDelete(id, identity.userId)
+    Nova.Metrics.pulse("novamusic.artistmarketplaceservice.delete", 1.0)
+    propagate nil
+  }
+}
+
+/// Achievement tracking and reward system for Sonic Dimension progression
+@service(
+  id: "sonicmileston-svc",
+  platform: "NovaMusic",
+  shield: ShieldLevel.STANDARD
+)
+service SonicMilestoneService {
+
+  @inject forge vault: DataVault<Any>
+  @inject forge auth: Nova.Auth
+  @inject forge bus: Nova.Bus
+
+  @portal(endpoint: "novamusic.sonicmilestone.get")
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: StandardRequestSchema)
+  manifest getAll(
+    ctx:    RequestContext,
+    filter: QueryFilter?
+  ): flow<Constellation<Any>> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge results = sync this.vault.query({
+      owner:  identity.userId,
+      filter: filter ?? QueryFilter.none(),
+      limit:  100
+    })
+
+    Nova.Metrics.pulse("novamusic.sonicmilestoneservice.get", 1.0)
+    propagate results
+  }
+
+  @portal(endpoint: "novamusic.sonicmilestone.create")
+  @audit
+  @shield(require: ["AUTHENTICATED"])
+  @validate(schema: CreateRequestSchema)
+  manifest create(
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+
+    forge entry = sync this.vault.store({
+      ...input,
+      id:        Nova.Crypto.uuid(),
+      ownerId:   identity.userId,
+      createdAt: Timestamp.now(),
+      status:    Status.ACTIVE
+    })
+
+    // Broadcast creation signal via IDB
+    Nova.Bus.emit("novamusic.sonicmilestone.created", Signal {
+      topic:   "novamusic.sonicmilestone.created",
+      payload: { entryId: entry.id, userId: identity.userId },
+      origin:  "novamusic",
+      priority: Priority.NORMAL
+    })
+
+    Nova.Metrics.pulse("novamusic.sonicmilestoneservice.create", 1.0)
+    propagate entry
+  }
+
+  @portal(endpoint: "novamusic.sonicmilestone.update")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest update(
+    id:    Text,
+    input: Any,
+    ctx:   RequestContext
+  ): flow<Any> {
+    forge identity = sync this.auth.verify(ctx)
+    forge existing = sync this.vault.get(id)
+    when (existing == nil) {
+      fault ResourceNotFound { resource: "SonicMilestone", id }
+    }
+
+    forge updated = sync this.vault.update(id, {
+      ...input,
+      updatedAt: Timestamp.now(),
+      updatedBy: identity.userId
+    })
+
+    propagate updated
+  }
+
+  @portal(endpoint: "novamusic.sonicmilestone.delete")
+  @audit
+  @shield(require: ["AUTHENTICATED", "OWNS_RESOURCE"])
+  manifest dissolve(id: Text, ctx: RequestContext): flow<nil> {
+    forge identity = sync this.auth.verify(ctx)
+    sync this.vault.softDelete(id, identity.userId)
+    Nova.Metrics.pulse("novamusic.sonicmilestoneservice.delete", 1.0)
+    propagate nil
+  }
+}
+
+
+seal {
+  service AIDJService
+  service TrackLibraryService
+  service SonicSessionService
+  service LeaderboardService
+  service ArtistMarketplaceService
+  service SonicMilestoneService
+}

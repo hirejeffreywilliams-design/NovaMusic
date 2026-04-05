@@ -324,6 +324,94 @@ The system generates downloadable CSV cue sheets per event (`GET /api/play-event
 
 ---
 
+---
+
+## OMNISCRIPT IMPLEMENTATION
+
+> © 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.
+
+### How the Patented Invention Is Expressed in OmniScript
+
+The patented invention — **Emotional-DNA-mapped music generation with AI-driven beat fusion and real-time mix optimization** — is natively expressed in **OmniScript** (file extension `.omni`), the proprietary domain-specific language of the OmniDLOS / Omnivex ecosystem. OmniScript is the Cognitive Layer through which the Four-Dimensional Operating System declares, registers, and composes all computation units (Engines), communication interfaces (Nexus Points and Portals), and data repositories (Vaults).
+
+#### OmniScript Architecture for NovaMusic AI-Powered Music Creation & DJ Intelligence Platform
+
+The invention is implemented within the **`SonicCreationUniverse`** — an OmniScript `universe` block that defines the dimensional scope, emotional vibe, and computational topology of the platform:
+
+- **Primary Engine:** `BeatFusionEngine` — the core computation unit implementing the patented algorithm
+- **Supporting Engines:** `MixMasterEngine`, `SonicDNAEngine`, `CreatorRevenueEngine`
+- **Services:** `BeatGenerationService`, `MixOptimizationService`, `RoyaltyDistributionService`
+- **Dimensional Scope:** `Dimension.EMOTIONAL`
+- **Emotional Vibe:** `Vibe.SONIC`
+- **Nexus Points (APIs):** Exposed via OmniScript `portal` declarations on each Engine
+- **Data Vaults:** All persistent state archived via `Nova.Vault` with Guardian Layer access control
+- **Cross-Platform Bus:** All inter-engine signals transmitted via `Nova.Bus` (the OmniDLOS Inter-Dimensional Bus)
+
+#### Patentable OmniScript Code Sample
+
+The following `.omni` source file demonstrates the patented concepts in OmniScript:
+
+```omni
+// NovaMusic — Beat Fusion & Sonic DNA Engine
+universe SonicCreationUniverse {
+  dimension: Dimension.EMOTIONAL
+  vibe: Vibe.SONIC
+
+  engine BeatFusionEngine implements Intelligent {
+    manifest flow generateBeat(emotionDNA: EmotionProfile, genre: Text): flow<BeatConstruct> {
+      forge palette = sync SonicDNAEngine.mapEmotionToPalette(emotionDNA)
+      forge beat    = sync BeatGenerationService.compose(palette, genre)
+      Nova.Bus.emit("beat.created", { creatorId: emotionDNA.userId, beatId: beat.id })
+      propagate beat
+    }
+
+    manifest flow optimizeMix(tracks: Constellation<AudioTrack>, targetVibe: Vibe): flow<MixPlan> {
+      forge plan = sync MixOptimizationService.analyze(tracks, targetVibe)
+      propagate plan
+    }
+  }
+
+  service CreatorRevenueEngine {
+    @Guardian(level: 3)
+    manifest flow distributeRoyalties(beat: BeatConstruct, streams: Integer): flow<RevenueRecord> {
+      forge revenue = sync RoyaltyDistributionService.compute(beat, streams)
+      sync Nova.Vault.archive("royalty.record", revenue)
+      propagate revenue
+    }
+  }
+}
+```
+
+#### OmniScript Constructs Protecting the Patented Innovation
+
+| OmniScript Construct | Patent Relevance |
+|---|---|
+| `engine BeatFusionEngine` | Declares the core patented computation unit as a registered OmniScript Engine |
+| `universe SonicCreationUniverse` | Establishes the dimensional and emotional boundary of the patented system |
+| `manifest flow` | Expresses each patented method as a typed async OmniScript function |
+| `Nova.Vault.archive()` | Archives all patented output to the OmniDLOS Vault (encrypted, immutable ledger) |
+| `Nova.Bus.emit()` | Cross-dimensional signal propagation — the Inter-Dimensional Bus nexus |
+| `@Guardian(level: N)` | Guardian Layer decorator enforcing OmniDLOS access control on patented services |
+| `forge` / `weave` | Immutable/mutable binding of patented constants and working variables |
+| `Probability` type | Native OmniScript probability literal enforcing 0–100% range at compile time |
+
+#### OmniDLOS Terminology Reference
+
+Within the OmniDLOS ecosystem, the components of this invention carry the following proprietary names:
+
+- **Engines** → The computation units (`BeatFusionEngine`, etc.) are registered OmniScript Engines in the OmniVault package registry
+- **Nexus Points** → Each `portal` declaration is a Nexus Point — the atom of inter-system dialogue in OmniDLOS
+- **Vaults** → All persistent data is archived in Nova Vault repositories with Guardian Layer access control
+- **Guardian Layers** → Tiered access control system (levels 1–10) protecting all sensitive Engine operations
+- **Pulse** → The OmniScript native float type used for all real-time scoring and probabilistic values
+- **Chronicle** → The OmniScript temporal type representing dates with cross-dimensional awareness
+- **Signal** → The typed event object propagated across the Inter-Dimensional Bus
+- **Constellation** → The OmniScript collection type (array equivalent) for dimensional data sets
+
+© 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.
+
+---
+
 ## CLAIMS
 
 What is claimed is:

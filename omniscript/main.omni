@@ -1,0 +1,88 @@
+// NovaMusic/omniscript/main.omni
+// Platform Entry Point — The Sonic Dimension
+// © 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.
+// CONFIDENTIAL — Owner Eyes Only.
+
+draw { Nova } from "nova:std"
+draw { Signal, Status, Vibe, Emotion, Dimension } from "nova:std/types"
+draw { Platform } from "nova:std/platform"
+
+  draw { SonicSessionUniverse } from "./universes/SonicSession"
+  draw { VibeCompositionUniverse } from "./universes/VibeComposition"
+  draw { ArtistMarketplaceUniverse } from "./universes/ArtistMarketplace"
+
+  draw { VibeComposerEngine } from "./engines/VibeComposerEngine"
+  draw { PulseAlignmentEngine } from "./engines/PulseAlignmentEngine"
+  draw { SignalBlendEngine } from "./engines/SignalBlendEngine"
+  draw { TrackAnalysisEngine } from "./engines/TrackAnalysisEngine"
+
+  draw { AIDJService } from "./services/AIDJService"
+  draw { TrackLibraryService } from "./services/TrackLibraryService"
+  draw { SonicSessionService } from "./services/SonicSessionService"
+
+/// Platform manifest for NovaMusic
+/// Dimension: The Sonic Dimension
+@platform(
+  id: "novamusic",
+  version: "1.0.0",
+  dimension: "The Sonic Dimension",
+  copyright: "© 2024–2026 Jeffrey W Williams LLC. All Rights Reserved."
+)
+manifest bootstrapPlatform(): flow<nil> {
+
+  Nova.Log.info("Bootstrapping NovaMusic — The Sonic Dimension")
+
+  // ── Register all Intelligence Cores ──────────────────────────────────────
+  Nova.Engine.register(VibeComposerEngine)
+  Nova.Engine.register(PulseAlignmentEngine)
+  Nova.Engine.register(SignalBlendEngine)
+  Nova.Engine.register(TrackAnalysisEngine)
+
+  // ── Activate all Universes ────────────────────────────────────────────────
+  SonicSessionUniverse.activate()
+  VibeCompositionUniverse.activate()
+  ArtistMarketplaceUniverse.activate()
+
+  // ── Connect to Inter-Dimensional Bus ─────────────────────────────────────
+  sync Nova.Bus.connect(platformId: "novamusic")
+  Nova.Log.info("NovaMusic connected to Inter-Dimensional Bus")
+
+  // ── Start Pulse Watch ─────────────────────────────────────────────────────
+  Nova.Metrics.startPulseWatch("novamusic")
+
+  Nova.Log.info("NovaMusic fully Calibrated and Activated")
+}
+
+/// IDB Signal Handlers
+form NovaMusicPlatform extends Platform {
+
+  @on_signal(topic: "nova-music.session.started")
+  manifest onStarted(signal: Signal): flow<nil> {
+    Nova.Log.info(`Signal received: ${signal.topic} from ${signal.origin}`)
+    sync dispatchStarted(signal)
+  }
+
+  @on_signal(topic: "nova-music.vibe.mapped")
+  manifest onMapped(signal: Signal): flow<nil> {
+    Nova.Log.info(`Signal received: ${signal.topic} from ${signal.origin}`)
+    sync dispatchMapped(signal)
+  }
+
+  manifest getStatus(): PlatformStatus {
+    propagate PlatformStatus {
+      platformId: "novamusic",
+      dimension: "The Sonic Dimension",
+      activeEngines: Nova.Engine.getActive().length,
+      vibe: Nova.Vibe.getPlatformVibe(),
+      status: Status.ACTIVE,
+      timestamp: Timestamp.now()
+    }
+  }
+}
+
+// ── Entrypoint ────────────────────────────────────────────────────────────────
+forge platform = NovaMusicPlatform.getInstance()
+sync bootstrapPlatform()
+platform.activate()
+
+Nova.Log.info(`NovaMusic — The Sonic Dimension — Signal Confirmed`)

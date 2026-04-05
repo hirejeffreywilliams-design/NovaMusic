@@ -1,0 +1,71 @@
+{
+  "name":        "novamusic",
+  "displayName": "NovaMusic",
+  "version":     "1.0.0",
+  "language":    "omniscript@1.0",
+  "platform":    "NovaMusic",
+  "runtime":     "omnidlos-runtime@4.0",
+
+  "description": "Where emotion becomes sound, and the user is both composer and audience. NovaMusic's VibeComposer Engine translates EmotionDNA and ChromaFeel into musical parameters in real time.",
+  "dimension":   "The Sonic Dimension",
+
+  "engines": [
+    "VibeComposerEngine",
+    "PulseAlignmentEngine",
+    "SignalBlendEngine",
+    "TrackAnalysisEngine",
+    "SetlistPlannerEngine",
+    "ChromaSoundProtocolEngine",
+    "ResonanceSignalEngine",
+    "WebRTCBroadcastEngine",
+    "SonicDiscoveryEngine",
+    "AudioMetadataEngine"
+  ],
+
+  "universes": [
+    "SonicSession",
+    "VibeComposition",
+    "ArtistMarketplace"
+  ],
+
+  "services": [
+    "AIDJService",
+    "TrackLibraryService",
+    "SonicSessionService",
+    "LeaderboardService",
+    "ArtistMarketplaceService",
+    "SonicMilestoneService"
+  ],
+
+  "idb": {
+    "topics": [
+      "nova-music.session.started",
+      "nova-music.vibe.mapped",
+      "nova-music.sonic-signal.broadcast"
+    ]
+  },
+
+  "vault": "SonicVault",
+
+  "dependencies": {
+    "nova-auth":    "omnivault:nova-auth@2.1.0",
+    "nova-data":    "omnivault:nova-data@3.0.0",
+    "nova-metrics": "omnivault:nova-metrics@1.5.0",
+    "nova-ai":      "omnivault:nova-ai@4.0.0",
+    "nova-bus":     "omnivault:nova-bus@2.3.0",
+    "nova-vibe":    "omnivault:nova-vibe@1.2.0",
+    "nova-emotion": "omnivault:nova-emotion@1.2.0"
+  },
+
+  "shields": ["RBAC", "CSRF", "RATE_LIMIT", "MFA", "SIGNAL_CLOAKING"],
+
+  "omnivex": {
+    "constellation": "omnivex",
+    "platformIndex": 6,
+    "totalPlatforms": 13
+  },
+
+  "copyright":   "© 2024–2026 Jeffrey W Williams LLC. All Rights Reserved.",
+  "license":     "PROPRIETARY",
+  "owner":       "Jeffrey W Williams LLC"
+}
