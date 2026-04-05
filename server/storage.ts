@@ -15,6 +15,18 @@ import {
   type Track, type InsertTrack,
   type PlayEvent, type InsertPlayEvent,
   type RoyaltyPayout, type InsertRoyaltyPayout,
+  type Playlist, type InsertPlaylist,
+  type PlaylistTrack, type InsertPlaylistTrack,
+  type Follower, type InsertFollower,
+  type Like, type InsertLike,
+  type Comment, type InsertComment,
+  type LiveStream, type InsertLiveStream,
+  type Lyrics, type InsertLyrics,
+  type Concert, type InsertConcert,
+  type Merchandise, type InsertMerchandise,
+  type MerchOrder, type InsertMerchOrder,
+  type Beat, type InsertBeat,
+  type Sample, type InsertSample,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 
@@ -148,6 +160,93 @@ export interface IStorage {
   getRoyaltyPayoutById(id: string): Promise<RoyaltyPayout | undefined>;
   createRoyaltyPayout(payout: InsertRoyaltyPayout): Promise<RoyaltyPayout>;
   markPayoutPaid(id: string): Promise<RoyaltyPayout | undefined>;
+
+  // Playlists
+  createPlaylist(playlist: InsertPlaylist): Promise<Playlist>;
+  getPlaylist(id: string): Promise<Playlist | undefined>;
+  updatePlaylist(id: string, fields: Partial<Playlist>): Promise<Playlist | undefined>;
+  deletePlaylist(id: string): Promise<void>;
+  listUserPlaylists(userId: string): Promise<Playlist[]>;
+  listPublicPlaylists(): Promise<Playlist[]>;
+  addTrackToPlaylist(entry: InsertPlaylistTrack): Promise<PlaylistTrack>;
+  removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<void>;
+  getPlaylistTracks(playlistId: string): Promise<PlaylistTrack[]>;
+
+  // Social: Followers
+  followUser(data: InsertFollower): Promise<Follower>;
+  unfollowUser(followerId: string, followingId: string): Promise<void>;
+  getFollowers(userId: string): Promise<Follower[]>;
+  getFollowing(userId: string): Promise<Follower[]>;
+  isFollowing(followerId: string, followingId: string): Promise<boolean>;
+
+  // Social: Likes
+  likeTrack(data: InsertLike): Promise<Like>;
+  unlikeTrack(userId: string, trackId: string): Promise<void>;
+  getTrackLikes(trackId: string): Promise<Like[]>;
+  getUserLikes(userId: string): Promise<Like[]>;
+  isLiked(userId: string, trackId: string): Promise<boolean>;
+
+  // Social: Comments
+  createComment(data: InsertComment): Promise<Comment>;
+  getTrackComments(trackId: string): Promise<Comment[]>;
+  deleteComment(id: string): Promise<void>;
+
+  // Live Streams
+  createLiveStream(data: InsertLiveStream): Promise<LiveStream>;
+  getLiveStream(id: string): Promise<LiveStream | undefined>;
+  updateLiveStream(id: string, fields: Partial<LiveStream>): Promise<LiveStream | undefined>;
+  listActiveLiveStreams(): Promise<LiveStream[]>;
+  listArtistStreams(artistId: string): Promise<LiveStream[]>;
+
+  // Lyrics
+  createLyrics(data: InsertLyrics): Promise<Lyrics>;
+  getLyrics(trackId: string): Promise<Lyrics | undefined>;
+  updateLyrics(trackId: string, fields: Partial<Lyrics>): Promise<Lyrics | undefined>;
+
+  // Concerts
+  createConcert(data: InsertConcert): Promise<Concert>;
+  getConcert(id: string): Promise<Concert | undefined>;
+  listConcerts(filters?: { city?: string; artistId?: string }): Promise<Concert[]>;
+  updateConcert(id: string, fields: Partial<Concert>): Promise<Concert | undefined>;
+  deleteConcert(id: string): Promise<void>;
+
+  // Merchandise
+  createMerchandise(data: InsertMerchandise): Promise<Merchandise>;
+  getMerchandise(id: string): Promise<Merchandise | undefined>;
+  listArtistMerchandise(artistId: string): Promise<Merchandise[]>;
+  updateMerchandise(id: string, fields: Partial<Merchandise>): Promise<Merchandise | undefined>;
+  deleteMerchandise(id: string): Promise<void>;
+  createMerchOrder(data: InsertMerchOrder): Promise<MerchOrder>;
+  getMerchOrder(id: string): Promise<MerchOrder | undefined>;
+  listUserOrders(userId: string): Promise<MerchOrder[]>;
+
+  // Beats
+  createBeat(data: InsertBeat): Promise<Beat>;
+  getBeat(id: string): Promise<Beat | undefined>;
+  listUserBeats(userId: string): Promise<Beat[]>;
+  updateBeat(id: string, fields: Partial<Beat>): Promise<Beat | undefined>;
+  deleteBeat(id: string): Promise<void>;
+
+  // Samples
+  createSample(data: InsertSample): Promise<Sample>;
+  getSample(id: string): Promise<Sample | undefined>;
+  listSamples(category?: string): Promise<Sample[]>;
+
+  // Charts
+  getTopTracks(limit?: number): Promise<Track[]>;
+  getTopArtists(limit?: number): Promise<{ artistId: string; artistName: string; totalPlays: number }[]>;
+  getTopTracksByGenre(genre: string, limit?: number): Promise<Track[]>;
+
+  // Discovery
+  getTrendingTracks(limit?: number): Promise<Track[]>;
+  getRecommendedTracks(userId: string, limit?: number): Promise<Track[]>;
+  getTracksByMood(mood: string, limit?: number): Promise<Track[]>;
+  getGenreList(): Promise<string[]>;
+
+  // Admin
+  listAllUsers(): Promise<User[]>;
+  updateUser(id: string, fields: Partial<User>): Promise<User | undefined>;
+  deleteUser(id: string): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
@@ -756,6 +855,326 @@ export class MemStorage implements IStorage {
     this.royaltyPayouts.set(id, updated);
     return updated;
   }
+
+  // ═══ Playlists ═══
+  private playlistsMap: Map<string, Playlist> = new Map();
+  private playlistTracksMap: Map<string, PlaylistTrack> = new Map();
+
+  async createPlaylist(p: InsertPlaylist): Promise<Playlist> {
+    const id = randomUUID();
+    const playlist: Playlist = { id, ...p, description: p.description ?? null, coverUrl: p.coverUrl ?? null, visibility: p.visibility ?? "private", trackCount: 0 };
+    this.playlistsMap.set(id, playlist);
+    return playlist;
+  }
+  async getPlaylist(id: string) { return this.playlistsMap.get(id); }
+  async updatePlaylist(id: string, fields: Partial<Playlist>): Promise<Playlist | undefined> {
+    const pl = this.playlistsMap.get(id);
+    if (!pl) return undefined;
+    const updated = { ...pl, ...fields };
+    this.playlistsMap.set(id, updated);
+    return updated;
+  }
+  async deletePlaylist(id: string): Promise<void> {
+    this.playlistsMap.delete(id);
+    Array.from(this.playlistTracksMap.entries()).forEach(([k, v]) => { if (v.playlistId === id) this.playlistTracksMap.delete(k); });
+  }
+  async listUserPlaylists(userId: string): Promise<Playlist[]> {
+    return Array.from(this.playlistsMap.values()).filter(p => p.userId === userId);
+  }
+  async listPublicPlaylists(): Promise<Playlist[]> {
+    return Array.from(this.playlistsMap.values()).filter(p => p.visibility === "public");
+  }
+  async addTrackToPlaylist(entry: InsertPlaylistTrack): Promise<PlaylistTrack> {
+    const id = randomUUID();
+    const pt: PlaylistTrack = { id, ...entry, addedBy: entry.addedBy ?? null, position: entry.position ?? 0 };
+    this.playlistTracksMap.set(id, pt);
+    const pl = this.playlistsMap.get(entry.playlistId);
+    if (pl) this.playlistsMap.set(pl.id, { ...pl, trackCount: pl.trackCount + 1 });
+    return pt;
+  }
+  async removeTrackFromPlaylist(playlistId: string, trackId: string): Promise<void> {
+    const ptEntries = Array.from(this.playlistTracksMap.entries());
+    for (let i = 0; i < ptEntries.length; i++) {
+      const [k, v] = ptEntries[i];
+      if (v.playlistId === playlistId && v.trackId === trackId) { this.playlistTracksMap.delete(k); break; }
+    }
+    const pl = this.playlistsMap.get(playlistId);
+    if (pl) this.playlistsMap.set(pl.id, { ...pl, trackCount: Math.max(0, pl.trackCount - 1) });
+  }
+  async getPlaylistTracks(playlistId: string): Promise<PlaylistTrack[]> {
+    return Array.from(this.playlistTracksMap.values()).filter(pt => pt.playlistId === playlistId).sort((a, b) => a.position - b.position);
+  }
+
+  // ═══ Social: Followers ═══
+  private followersMap: Map<string, Follower> = new Map();
+
+  async followUser(data: InsertFollower): Promise<Follower> {
+    const existing = Array.from(this.followersMap.values()).find(f => f.followerId === data.followerId && f.followingId === data.followingId);
+    if (existing) return existing;
+    const id = randomUUID();
+    const f: Follower = { id, ...data };
+    this.followersMap.set(id, f);
+    return f;
+  }
+  async unfollowUser(followerId: string, followingId: string): Promise<void> {
+    const fEntries = Array.from(this.followersMap.entries());
+    for (let i = 0; i < fEntries.length; i++) {
+      const [k, v] = fEntries[i];
+      if (v.followerId === followerId && v.followingId === followingId) { this.followersMap.delete(k); break; }
+    }
+  }
+  async getFollowers(userId: string): Promise<Follower[]> {
+    return Array.from(this.followersMap.values()).filter(f => f.followingId === userId);
+  }
+  async getFollowing(userId: string): Promise<Follower[]> {
+    return Array.from(this.followersMap.values()).filter(f => f.followerId === userId);
+  }
+  async isFollowing(followerId: string, followingId: string): Promise<boolean> {
+    return Array.from(this.followersMap.values()).some(f => f.followerId === followerId && f.followingId === followingId);
+  }
+
+  // ═══ Social: Likes ═══
+  private likesMap: Map<string, Like> = new Map();
+
+  async likeTrack(data: InsertLike): Promise<Like> {
+    const existing = Array.from(this.likesMap.values()).find(l => l.userId === data.userId && l.trackId === data.trackId);
+    if (existing) return existing;
+    const id = randomUUID();
+    const like: Like = { id, ...data };
+    this.likesMap.set(id, like);
+    return like;
+  }
+  async unlikeTrack(userId: string, trackId: string): Promise<void> {
+    const lEntries = Array.from(this.likesMap.entries());
+    for (let i = 0; i < lEntries.length; i++) {
+      const [k, v] = lEntries[i];
+      if (v.userId === userId && v.trackId === trackId) { this.likesMap.delete(k); break; }
+    }
+  }
+  async getTrackLikes(trackId: string): Promise<Like[]> {
+    return Array.from(this.likesMap.values()).filter(l => l.trackId === trackId);
+  }
+  async getUserLikes(userId: string): Promise<Like[]> {
+    return Array.from(this.likesMap.values()).filter(l => l.userId === userId);
+  }
+  async isLiked(userId: string, trackId: string): Promise<boolean> {
+    return Array.from(this.likesMap.values()).some(l => l.userId === userId && l.trackId === trackId);
+  }
+
+  // ═══ Social: Comments ═══
+  private commentsMap: Map<string, Comment> = new Map();
+
+  async createComment(data: InsertComment): Promise<Comment> {
+    const id = randomUUID();
+    const c: Comment = { id, ...data };
+    this.commentsMap.set(id, c);
+    return c;
+  }
+  async getTrackComments(trackId: string): Promise<Comment[]> {
+    return Array.from(this.commentsMap.values()).filter(c => c.trackId === trackId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+  async deleteComment(id: string): Promise<void> { this.commentsMap.delete(id); }
+
+  // ═══ Live Streams ═══
+  private liveStreamsMap: Map<string, LiveStream> = new Map();
+
+  async createLiveStream(data: InsertLiveStream): Promise<LiveStream> {
+    const id = randomUUID();
+    const s: LiveStream = { id, ...data, viewerCount: 0, description: data.description ?? null, scheduledAt: data.scheduledAt ?? null, startedAt: data.startedAt ?? null, endedAt: data.endedAt ?? null, status: data.status ?? "scheduled" };
+    this.liveStreamsMap.set(id, s);
+    return s;
+  }
+  async getLiveStream(id: string) { return this.liveStreamsMap.get(id); }
+  async updateLiveStream(id: string, fields: Partial<LiveStream>): Promise<LiveStream | undefined> {
+    const s = this.liveStreamsMap.get(id);
+    if (!s) return undefined;
+    const updated = { ...s, ...fields };
+    this.liveStreamsMap.set(id, updated);
+    return updated;
+  }
+  async listActiveLiveStreams(): Promise<LiveStream[]> {
+    return Array.from(this.liveStreamsMap.values()).filter(s => s.status === "live");
+  }
+  async listArtistStreams(artistId: string): Promise<LiveStream[]> {
+    return Array.from(this.liveStreamsMap.values()).filter(s => s.artistId === artistId);
+  }
+
+  // ═══ Lyrics ═══
+  private lyricsMap: Map<string, Lyrics> = new Map();
+
+  async createLyrics(data: InsertLyrics): Promise<Lyrics> {
+    const id = randomUUID();
+    const l: Lyrics = { id, ...data, syncedLines: data.syncedLines ?? null };
+    this.lyricsMap.set(id, l);
+    return l;
+  }
+  async getLyrics(trackId: string): Promise<Lyrics | undefined> {
+    return Array.from(this.lyricsMap.values()).find(l => l.trackId === trackId);
+  }
+  async updateLyrics(trackId: string, fields: Partial<Lyrics>): Promise<Lyrics | undefined> {
+    const l = Array.from(this.lyricsMap.values()).find(ly => ly.trackId === trackId);
+    if (!l) return undefined;
+    const updated = { ...l, ...fields };
+    this.lyricsMap.set(l.id, updated);
+    return updated;
+  }
+
+  // ═══ Concerts ═══
+  private concertsMap: Map<string, Concert> = new Map();
+
+  async createConcert(data: InsertConcert): Promise<Concert> {
+    const id = randomUUID();
+    const c: Concert = { id, ...data, description: data.description ?? null, time: data.time ?? null, ticketUrl: data.ticketUrl ?? null, imageUrl: data.imageUrl ?? null, price: data.price ?? null, capacity: data.capacity ?? null, rsvpCount: 0 };
+    this.concertsMap.set(id, c);
+    return c;
+  }
+  async getConcert(id: string) { return this.concertsMap.get(id); }
+  async listConcerts(filters?: { city?: string; artistId?: string }): Promise<Concert[]> {
+    let list = Array.from(this.concertsMap.values());
+    if (filters?.city) list = list.filter(c => c.city.toLowerCase().includes(filters.city!.toLowerCase()));
+    if (filters?.artistId) list = list.filter(c => c.artistId === filters.artistId);
+    return list.sort((a, b) => a.date.localeCompare(b.date));
+  }
+  async updateConcert(id: string, fields: Partial<Concert>): Promise<Concert | undefined> {
+    const c = this.concertsMap.get(id);
+    if (!c) return undefined;
+    const updated = { ...c, ...fields };
+    this.concertsMap.set(id, updated);
+    return updated;
+  }
+  async deleteConcert(id: string): Promise<void> { this.concertsMap.delete(id); }
+
+  // ═══ Merchandise ═══
+  private merchandiseMap: Map<string, Merchandise> = new Map();
+  private merchOrdersMap: Map<string, MerchOrder> = new Map();
+
+  async createMerchandise(data: InsertMerchandise): Promise<Merchandise> {
+    const id = randomUUID();
+    const m: Merchandise = { id, ...data, description: data.description ?? null, imageUrl: data.imageUrl ?? null, category: data.category ?? "other", stock: data.stock ?? 0, available: data.available ?? true };
+    this.merchandiseMap.set(id, m);
+    return m;
+  }
+  async getMerchandise(id: string) { return this.merchandiseMap.get(id); }
+  async listArtistMerchandise(artistId: string): Promise<Merchandise[]> {
+    return Array.from(this.merchandiseMap.values()).filter(m => m.artistId === artistId && m.available);
+  }
+  async updateMerchandise(id: string, fields: Partial<Merchandise>): Promise<Merchandise | undefined> {
+    const m = this.merchandiseMap.get(id);
+    if (!m) return undefined;
+    const updated = { ...m, ...fields };
+    this.merchandiseMap.set(id, updated);
+    return updated;
+  }
+  async deleteMerchandise(id: string): Promise<void> { this.merchandiseMap.delete(id); }
+  async createMerchOrder(data: InsertMerchOrder): Promise<MerchOrder> {
+    const id = randomUUID();
+    const o: MerchOrder = { id, ...data, quantity: data.quantity ?? 1, status: data.status ?? "pending" };
+    this.merchOrdersMap.set(id, o);
+    return o;
+  }
+  async getMerchOrder(id: string) { return this.merchOrdersMap.get(id); }
+  async listUserOrders(userId: string): Promise<MerchOrder[]> {
+    return Array.from(this.merchOrdersMap.values()).filter(o => o.userId === userId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  // ═══ Beats ═══
+  private beatsMap: Map<string, Beat> = new Map();
+
+  async createBeat(data: InsertBeat): Promise<Beat> {
+    const id = randomUUID();
+    const b: Beat = { id, ...data, key: data.key ?? null, genre: data.genre ?? null, bpm: data.bpm ?? 120 };
+    this.beatsMap.set(id, b);
+    return b;
+  }
+  async getBeat(id: string) { return this.beatsMap.get(id); }
+  async listUserBeats(userId: string): Promise<Beat[]> {
+    return Array.from(this.beatsMap.values()).filter(b => b.userId === userId);
+  }
+  async updateBeat(id: string, fields: Partial<Beat>): Promise<Beat | undefined> {
+    const b = this.beatsMap.get(id);
+    if (!b) return undefined;
+    const updated = { ...b, ...fields };
+    this.beatsMap.set(id, updated);
+    return updated;
+  }
+  async deleteBeat(id: string): Promise<void> { this.beatsMap.delete(id); }
+
+  // ═══ Samples ═══
+  private samplesMap: Map<string, Sample> = new Map();
+
+  async createSample(data: InsertSample): Promise<Sample> {
+    const id = randomUUID();
+    const s: Sample = { id, ...data, duration: data.duration ?? null, bpm: data.bpm ?? null, key: data.key ?? null, tags: data.tags ?? null };
+    this.samplesMap.set(id, s);
+    return s;
+  }
+  async getSample(id: string) { return this.samplesMap.get(id); }
+  async listSamples(category?: string): Promise<Sample[]> {
+    let list = Array.from(this.samplesMap.values());
+    if (category) list = list.filter(s => s.category === category);
+    return list;
+  }
+
+  // ═══ Charts ═══
+  async getTopTracks(limit = 20): Promise<Track[]> {
+    return Array.from(this.tracks.values()).filter(t => t.available).sort((a, b) => b.playCount - a.playCount).slice(0, limit);
+  }
+  async getTopArtists(limit = 20): Promise<{ artistId: string; artistName: string; totalPlays: number }[]> {
+    const map = new Map<string, { artistId: string; artistName: string; totalPlays: number }>();
+    Array.from(this.tracks.values()).forEach(t => {
+      const entry = map.get(t.artistId) || { artistId: t.artistId, artistName: t.artistName, totalPlays: 0 };
+      entry.totalPlays += t.playCount;
+      map.set(t.artistId, entry);
+    });
+    return Array.from(map.values()).sort((a, b) => b.totalPlays - a.totalPlays).slice(0, limit);
+  }
+  async getTopTracksByGenre(genre: string, limit = 20): Promise<Track[]> {
+    return Array.from(this.tracks.values()).filter(t => t.available && t.genre?.toLowerCase() === genre.toLowerCase()).sort((a, b) => b.playCount - a.playCount).slice(0, limit);
+  }
+
+  // ═══ Discovery ═══
+  async getTrendingTracks(limit = 20): Promise<Track[]> {
+    return Array.from(this.tracks.values()).filter(t => t.available).sort((a, b) => b.playCount - a.playCount).slice(0, limit);
+  }
+  async getRecommendedTracks(userId: string, limit = 20): Promise<Track[]> {
+    const liked = await this.getUserLikes(userId);
+    const likedTrackIds = new Set(liked.map(l => l.trackId));
+    const likedTracks = Array.from(this.tracks.values()).filter(t => likedTrackIds.has(t.id));
+    const genres = new Set(likedTracks.map(t => t.genre).filter(Boolean));
+    if (genres.size === 0) return this.getTrendingTracks(limit);
+    return Array.from(this.tracks.values()).filter(t => t.available && !likedTrackIds.has(t.id) && genres.has(t.genre)).sort((a, b) => b.playCount - a.playCount).slice(0, limit);
+  }
+  async getTracksByMood(mood: string, limit = 20): Promise<Track[]> {
+    const moodGenreMap: Record<string, string[]> = {
+      energetic: ["Electronic", "House", "Techno", "Dance"],
+      chill: ["Jazz", "R&B", "Lo-fi"],
+      happy: ["Pop", "Reggaeton", "Afrobeats"],
+      dark: ["Techno", "Dubstep", "Industrial"],
+      focus: ["Ambient", "Classical", "Lo-fi"],
+      party: ["Hip-Hop", "Electronic", "House", "Dance"],
+    };
+    const genres = moodGenreMap[mood.toLowerCase()] || [];
+    if (genres.length === 0) return this.getTrendingTracks(limit);
+    return Array.from(this.tracks.values()).filter(t => t.available && genres.some(g => t.genre?.toLowerCase() === g.toLowerCase())).sort((a, b) => b.playCount - a.playCount).slice(0, limit);
+  }
+  async getGenreList(): Promise<string[]> {
+    const genres = new Set<string>();
+    Array.from(this.tracks.values()).forEach(t => { if (t.genre) genres.add(t.genre); });
+    return Array.from(genres).sort();
+  }
+
+  // ═══ Admin ═══
+  async listAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+  async updateUser(id: string, fields: Partial<User>): Promise<User | undefined> {
+    const user = this.users.get(id);
+    if (!user) return undefined;
+    const updated = { ...user, ...fields };
+    this.users.set(id, updated);
+    return updated;
+  }
+  async deleteUser(id: string): Promise<void> { this.users.delete(id); }
 }
 
 export const storage = new MemStorage();

@@ -1034,6 +1034,483 @@ export async function registerRoutes(httpServer: Server, app: Express): Promise<
     return res.json(updated);
   });
 
+  // ═══════════════════════════════════════════════════════════
+  // Auth: Logout & Profile
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/auth/logout", (_req, res) => {
+    res.clearCookie("lib_session");
+    return res.json({ ok: true, message: "Logged out" });
+  });
+
+  app.get("/api/auth/me", async (req, res) => {
+    const userId = req.headers["x-user-id"] as string;
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const user = await storage.getUser(userId);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const { password: _pw, ...safeUser } = user;
+    return res.json(safeUser);
+  });
+
+  app.put("/api/auth/profile", async (req, res) => {
+    const userId = req.headers["x-user-id"] as string;
+    if (!userId) return res.status(401).json({ error: "Not authenticated" });
+    const { username, accountType } = req.body || {};
+    const updated = await storage.updateUser(userId, { ...(username && { username }), ...(accountType && { accountType }) });
+    if (!updated) return res.status(404).json({ error: "User not found" });
+    const { password: _pw, ...safeUser } = updated;
+    return res.json(safeUser);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Playlists
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/playlists", async (req, res) => {
+    try {
+      const { userId, name, description, visibility } = req.body;
+      if (!userId || !name) return res.status(400).json({ error: "userId and name required" });
+      const now = new Date().toISOString();
+      const playlist = await storage.createPlaylist({ userId, name, description, visibility: visibility || "private", coverUrl: null, createdAt: now, updatedAt: now });
+      return res.json(playlist);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/playlists/user/:userId", async (req, res) => {
+    const playlists = await storage.listUserPlaylists(req.params.userId);
+    return res.json(playlists);
+  });
+
+  app.get("/api/playlists/public", async (_req, res) => {
+    const playlists = await storage.listPublicPlaylists();
+    return res.json(playlists);
+  });
+
+  app.get("/api/playlists/:id", async (req, res) => {
+    const playlist = await storage.getPlaylist(req.params.id);
+    if (!playlist) return res.status(404).json({ error: "Playlist not found" });
+    const tracks = await storage.getPlaylistTracks(playlist.id);
+    return res.json({ playlist, tracks });
+  });
+
+  app.put("/api/playlists/:id", async (req, res) => {
+    const { name, description, visibility } = req.body || {};
+    const updated = await storage.updatePlaylist(req.params.id, { ...(name && { name }), ...(description !== undefined && { description }), ...(visibility && { visibility }), updatedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ error: "Playlist not found" });
+    return res.json(updated);
+  });
+
+  app.delete("/api/playlists/:id", async (req, res) => {
+    await storage.deletePlaylist(req.params.id);
+    return res.json({ ok: true });
+  });
+
+  app.post("/api/playlists/:id/tracks", async (req, res) => {
+    try {
+      const { trackId, addedBy } = req.body;
+      if (!trackId) return res.status(400).json({ error: "trackId required" });
+      const playlist = await storage.getPlaylist(req.params.id);
+      if (!playlist) return res.status(404).json({ error: "Playlist not found" });
+      const existingTracks = await storage.getPlaylistTracks(req.params.id);
+      const pt = await storage.addTrackToPlaylist({ playlistId: req.params.id, trackId, addedBy: addedBy || null, position: existingTracks.length, addedAt: new Date().toISOString() });
+      return res.json(pt);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete("/api/playlists/:id/tracks/:trackId", async (req, res) => {
+    await storage.removeTrackFromPlaylist(req.params.id, req.params.trackId);
+    return res.json({ ok: true });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Social: Followers
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/follow/:artistId", async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    const follower = await storage.followUser({ followerId: userId, followingId: req.params.artistId, createdAt: new Date().toISOString() });
+    return res.json(follower);
+  });
+
+  app.delete("/api/follow/:artistId", async (req, res) => {
+    const userId = req.headers["x-user-id"] as string || req.body?.userId;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    await storage.unfollowUser(userId, req.params.artistId);
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/followers/:userId", async (req, res) => {
+    const followers = await storage.getFollowers(req.params.userId);
+    return res.json(followers);
+  });
+
+  app.get("/api/following/:userId", async (req, res) => {
+    const following = await storage.getFollowing(req.params.userId);
+    return res.json(following);
+  });
+
+  app.get("/api/is-following/:followerId/:followingId", async (req, res) => {
+    const result = await storage.isFollowing(req.params.followerId, req.params.followingId);
+    return res.json({ following: result });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Social: Likes
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/likes/:trackId", async (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    const like = await storage.likeTrack({ userId, trackId: req.params.trackId, createdAt: new Date().toISOString() });
+    return res.json(like);
+  });
+
+  app.delete("/api/likes/:trackId", async (req, res) => {
+    const userId = req.headers["x-user-id"] as string || req.body?.userId;
+    if (!userId) return res.status(400).json({ error: "userId required" });
+    await storage.unlikeTrack(userId, req.params.trackId);
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/likes/track/:trackId", async (req, res) => {
+    const likes = await storage.getTrackLikes(req.params.trackId);
+    return res.json({ count: likes.length, likes });
+  });
+
+  app.get("/api/likes/user/:userId", async (req, res) => {
+    const likes = await storage.getUserLikes(req.params.userId);
+    return res.json(likes);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Social: Comments
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/comments/:trackId", async (req, res) => {
+    const { userId, content, username } = req.body;
+    if (!userId || !content || !username) return res.status(400).json({ error: "userId, content, and username required" });
+    const comment = await storage.createComment({ userId, trackId: req.params.trackId, content, username, createdAt: new Date().toISOString() });
+    return res.json(comment);
+  });
+
+  app.get("/api/comments/:trackId", async (req, res) => {
+    const comments = await storage.getTrackComments(req.params.trackId);
+    return res.json(comments);
+  });
+
+  app.delete("/api/comments/:commentId", async (req, res) => {
+    await storage.deleteComment(req.params.commentId);
+    return res.json({ ok: true });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Live Streams
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/streams", async (req, res) => {
+    try {
+      const { artistId, artistName, title, description, scheduledAt } = req.body;
+      if (!artistId || !artistName || !title) return res.status(400).json({ error: "artistId, artistName, and title required" });
+      const stream = await storage.createLiveStream({ artistId, artistName, title, description, scheduledAt, status: "scheduled", startedAt: null, endedAt: null, createdAt: new Date().toISOString() });
+      return res.json(stream);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/streams/live", async (_req, res) => {
+    const streams = await storage.listActiveLiveStreams();
+    return res.json(streams);
+  });
+
+  app.get("/api/streams/artist/:artistId", async (req, res) => {
+    const streams = await storage.listArtistStreams(req.params.artistId);
+    return res.json(streams);
+  });
+
+  app.get("/api/streams/:id", async (req, res) => {
+    const stream = await storage.getLiveStream(req.params.id);
+    if (!stream) return res.status(404).json({ error: "Stream not found" });
+    return res.json(stream);
+  });
+
+  app.post("/api/streams/:id/start", async (req, res) => {
+    const updated = await storage.updateLiveStream(req.params.id, { status: "live", startedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ error: "Stream not found" });
+    return res.json(updated);
+  });
+
+  app.post("/api/streams/:id/end", async (req, res) => {
+    const updated = await storage.updateLiveStream(req.params.id, { status: "ended", endedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ error: "Stream not found" });
+    return res.json(updated);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Lyrics
+  // ═══════════════════════════════════════════════════════════
+  app.get("/api/lyrics/:trackId", async (req, res) => {
+    const lyrics = await storage.getLyrics(req.params.trackId);
+    if (!lyrics) return res.status(404).json({ error: "Lyrics not found" });
+    return res.json(lyrics);
+  });
+
+  app.post("/api/lyrics/:trackId", async (req, res) => {
+    const { plainText, syncedLines } = req.body;
+    if (!plainText) return res.status(400).json({ error: "plainText required" });
+    const existing = await storage.getLyrics(req.params.trackId);
+    if (existing) {
+      const updated = await storage.updateLyrics(req.params.trackId, { plainText, syncedLines });
+      return res.json(updated);
+    }
+    const lyrics = await storage.createLyrics({ trackId: req.params.trackId, plainText, syncedLines: syncedLines || null, createdAt: new Date().toISOString() });
+    return res.json(lyrics);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Charts & Leaderboards
+  // ═══════════════════════════════════════════════════════════
+  app.get("/api/charts/top-tracks", async (req, res) => {
+    const { genre, limit: limitStr } = req.query as Record<string, string>;
+    const limit = parseInt(limitStr || "50", 10);
+    const tracks = genre ? await storage.getTopTracksByGenre(genre, limit) : await storage.getTopTracks(limit);
+    return res.json(tracks);
+  });
+
+  app.get("/api/charts/top-artists", async (req, res) => {
+    const limit = parseInt((req.query.limit as string) || "50", 10);
+    const artists = await storage.getTopArtists(limit);
+    return res.json(artists);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Discovery
+  // ═══════════════════════════════════════════════════════════
+  app.get("/api/discovery/trending", async (req, res) => {
+    const limit = parseInt((req.query.limit as string) || "20", 10);
+    const tracks = await storage.getTrendingTracks(limit);
+    return res.json(tracks);
+  });
+
+  app.get("/api/discovery/recommendations/:userId", async (req, res) => {
+    const limit = parseInt((req.query.limit as string) || "20", 10);
+    const tracks = await storage.getRecommendedTracks(req.params.userId, limit);
+    return res.json(tracks);
+  });
+
+  app.get("/api/discovery/moods", (_req, res) => {
+    return res.json([
+      { id: "energetic", name: "Energetic", icon: "zap", color: "#ef4444" },
+      { id: "chill", name: "Chill", icon: "cloud", color: "#06b6d4" },
+      { id: "happy", name: "Happy", icon: "sun", color: "#eab308" },
+      { id: "dark", name: "Dark", icon: "moon", color: "#6366f1" },
+      { id: "focus", name: "Focus", icon: "brain", color: "#22c55e" },
+      { id: "party", name: "Party", icon: "sparkles", color: "#f97316" },
+    ]);
+  });
+
+  app.get("/api/discovery/moods/:mood", async (req, res) => {
+    const limit = parseInt((req.query.limit as string) || "20", 10);
+    const tracks = await storage.getTracksByMood(req.params.mood, limit);
+    return res.json(tracks);
+  });
+
+  app.get("/api/discovery/genres", async (_req, res) => {
+    const genres = await storage.getGenreList();
+    const defaultGenres = ["Electronic", "House", "Techno", "Hip-Hop", "Pop", "R&B", "Afrobeats", "Reggaeton", "Jazz", "Lo-fi", "Ambient", "Dance"];
+    const allGenres = Array.from(new Set([...defaultGenres, ...genres])).sort();
+    return res.json(allGenres);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Concerts / Events
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/concerts", async (req, res) => {
+    try {
+      const { artistId, artistName, title, description, venue, city, date, time, ticketUrl, imageUrl, price, capacity } = req.body;
+      if (!artistId || !artistName || !title || !venue || !city || !date) return res.status(400).json({ error: "artistId, artistName, title, venue, city, and date required" });
+      const concert = await storage.createConcert({ artistId, artistName, title, description, venue, city, date, time, ticketUrl, imageUrl, price, capacity, createdAt: new Date().toISOString() });
+      return res.json(concert);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/concerts", async (req, res) => {
+    const { city, artistId } = req.query as Record<string, string>;
+    const concerts = await storage.listConcerts({ city, artistId });
+    return res.json(concerts);
+  });
+
+  app.get("/api/concerts/:id", async (req, res) => {
+    const concert = await storage.getConcert(req.params.id);
+    if (!concert) return res.status(404).json({ error: "Concert not found" });
+    return res.json(concert);
+  });
+
+  app.put("/api/concerts/:id", async (req, res) => {
+    const updated = await storage.updateConcert(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Concert not found" });
+    return res.json(updated);
+  });
+
+  app.delete("/api/concerts/:id", async (req, res) => {
+    await storage.deleteConcert(req.params.id);
+    return res.json({ ok: true });
+  });
+
+  app.post("/api/concerts/:id/rsvp", async (req, res) => {
+    const concert = await storage.getConcert(req.params.id);
+    if (!concert) return res.status(404).json({ error: "Concert not found" });
+    await storage.updateConcert(req.params.id, { rsvpCount: concert.rsvpCount + 1 });
+    return res.json({ ok: true, rsvpCount: concert.rsvpCount + 1 });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Merchandise Store
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/merch", async (req, res) => {
+    try {
+      const { artistId, name, description, price, imageUrl, category, stock } = req.body;
+      if (!artistId || !name || price == null) return res.status(400).json({ error: "artistId, name, and price required" });
+      const item = await storage.createMerchandise({ artistId, name, description, price, imageUrl, category: category || "other", stock: stock || 0, available: true, createdAt: new Date().toISOString() });
+      return res.json(item);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/merch/artist/:artistId", async (req, res) => {
+    const items = await storage.listArtistMerchandise(req.params.artistId);
+    return res.json(items);
+  });
+
+  app.get("/api/merch/:id", async (req, res) => {
+    const item = await storage.getMerchandise(req.params.id);
+    if (!item) return res.status(404).json({ error: "Item not found" });
+    return res.json(item);
+  });
+
+  app.put("/api/merch/:id", async (req, res) => {
+    const updated = await storage.updateMerchandise(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Item not found" });
+    return res.json(updated);
+  });
+
+  app.delete("/api/merch/:id", async (req, res) => {
+    await storage.deleteMerchandise(req.params.id);
+    return res.json({ ok: true });
+  });
+
+  app.post("/api/merch/order", async (req, res) => {
+    try {
+      const { userId, merchId, quantity } = req.body;
+      if (!userId || !merchId) return res.status(400).json({ error: "userId and merchId required" });
+      const item = await storage.getMerchandise(merchId);
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      const qty = quantity || 1;
+      const order = await storage.createMerchOrder({ userId, merchId, quantity: qty, totalPrice: item.price * qty, status: "pending", createdAt: new Date().toISOString() });
+      return res.json(order);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/merch/orders/:userId", async (req, res) => {
+    const orders = await storage.listUserOrders(req.params.userId);
+    return res.json(orders);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Music Production: Beats
+  // ═══════════════════════════════════════════════════════════
+  app.post("/api/beats", async (req, res) => {
+    try {
+      const { userId, name, bpm, key, genre, pattern } = req.body;
+      if (!userId || !name || !pattern) return res.status(400).json({ error: "userId, name, and pattern required" });
+      const now = new Date().toISOString();
+      const beat = await storage.createBeat({ userId, name, bpm: bpm || 120, key, genre, pattern, createdAt: now, updatedAt: now });
+      return res.json(beat);
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
+  app.get("/api/beats/user/:userId", async (req, res) => {
+    const beats = await storage.listUserBeats(req.params.userId);
+    return res.json(beats);
+  });
+
+  app.get("/api/beats/:id", async (req, res) => {
+    const beat = await storage.getBeat(req.params.id);
+    if (!beat) return res.status(404).json({ error: "Beat not found" });
+    return res.json(beat);
+  });
+
+  app.put("/api/beats/:id", async (req, res) => {
+    const updated = await storage.updateBeat(req.params.id, { ...req.body, updatedAt: new Date().toISOString() });
+    if (!updated) return res.status(404).json({ error: "Beat not found" });
+    return res.json(updated);
+  });
+
+  app.delete("/api/beats/:id", async (req, res) => {
+    await storage.deleteBeat(req.params.id);
+    return res.json({ ok: true });
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Samples Library
+  // ═══════════════════════════════════════════════════════════
+  app.get("/api/samples", async (req, res) => {
+    const { category } = req.query as Record<string, string>;
+    const samples = await storage.listSamples(category);
+    return res.json(samples);
+  });
+
+  app.get("/api/samples/:id", async (req, res) => {
+    const sample = await storage.getSample(req.params.id);
+    if (!sample) return res.status(404).json({ error: "Sample not found" });
+    return res.json(sample);
+  });
+
+  // ═══════════════════════════════════════════════════════════
+  // Admin: User Management & Content Moderation
+  // ═══════════════════════════════════════════════════════════
+  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    const users = await storage.listAllUsers();
+    return res.json(users.map(u => { const { password: _pw, ...safe } = u; return safe; }));
+  });
+
+  app.get("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    const user = await storage.getUser(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    const { password: _pw, ...safe } = user;
+    return res.json(safe);
+  });
+
+  app.put("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    const { accountType } = req.body || {};
+    const updated = await storage.updateUser(req.params.id, { ...(accountType && { accountType }) });
+    if (!updated) return res.status(404).json({ error: "User not found" });
+    const { password: _pw, ...safe } = updated;
+    return res.json(safe);
+  });
+
+  app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+    await storage.deleteUser(req.params.id);
+    return res.json({ ok: true });
+  });
+
+  app.get("/api/admin/analytics", requireAdmin, async (_req, res) => {
+    try {
+      const [users, tracks, events, totalRevenue, subscriptionsByTier] = await Promise.all([
+        storage.listAllUsers(),
+        storage.getTracks(),
+        storage.listAllEvents(),
+        storage.getTotalPlatformRevenue(),
+        storage.getSubscriptionsByTier(),
+      ]);
+      const activeStreams = await storage.listActiveLiveStreams();
+      return res.json({
+        totalUsers: users.length,
+        totalTracks: tracks.length,
+        totalEvents: events.length,
+        activeStreams: activeStreams.length,
+        totalRevenue,
+        subscriptionsByTier,
+        usersByType: {
+          dj: users.filter(u => u.accountType === "dj").length,
+          artist: users.filter(u => u.accountType === "artist").length,
+        },
+      });
+    } catch (e: any) { return res.status(500).json({ error: e.message }); }
+  });
+
   registerAIDJRoutes(app);
   registerPlatformRoutes(app);
 

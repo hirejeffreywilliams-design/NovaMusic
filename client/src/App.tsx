@@ -23,25 +23,49 @@ import PrivacyPolicy from "@/pages/privacy";
 import DmcaPolicy from "@/pages/dmca";
 import { CookieBanner } from "@/components/cookie-banner";
 import SetupGuide from "@/pages/setup-guide";
+import LoginPage from "@/pages/login";
+import DiscoverPage from "@/pages/discover";
+import ChartsPage from "@/pages/charts";
+import PlaylistsPage from "@/pages/playlists";
+import LiveStreamsPage from "@/pages/live-streams";
+import ConcertsPage from "@/pages/concerts";
+import MerchStorePage from "@/pages/merch-store";
+import BeatMakerPage from "@/pages/beat-maker";
+import ArtistProfilePage from "@/pages/artist-profile";
+import AdminUsersPage from "@/pages/admin-users";
+import SearchPage from "@/pages/search";
+import ProfilePage from "@/pages/profile";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Landing} />
+      <Route path="/login" component={LoginPage} />
+      <Route path="/signup" component={SignupPage} />
+      <Route path="/profile" component={ProfilePage} />
+      <Route path="/search" component={SearchPage} />
+      <Route path="/discover" component={DiscoverPage} />
+      <Route path="/charts" component={ChartsPage} />
+      <Route path="/playlists" component={PlaylistsPage} />
+      <Route path="/live" component={LiveStreamsPage} />
+      <Route path="/concerts" component={ConcertsPage} />
+      <Route path="/merch" component={MerchStorePage} />
+      <Route path="/beat-maker" component={BeatMakerPage} />
+      <Route path="/artist/:id" component={ArtistProfilePage} />
+      <Route path="/artist/dashboard" component={ArtistDashboard} />
       <Route path="/ai-dj" component={AIDJPage} />
       <Route path="/console" component={DJConsole} />
       <Route path="/party" component={PartyMode} />
       <Route path="/party/:eventCode" component={CrowdPage} />
       <Route path="/setlist/:eventCode" component={SetlistPage} />
+      <Route path="/marketplace" component={MarketplacePage} />
       <Route path="/pricing" component={Pricing} />
       <Route path="/admin" component={AdminDashboard} />
+      <Route path="/admin/royalties" component={AdminRoyaltiesPage} />
+      <Route path="/admin/users" component={AdminUsersPage} />
+      <Route path="/event-history" component={EventHistoryPage} />
       <Route path="/compliance" component={CompliancePage} />
       <Route path="/terms" component={TermsPage} />
-      <Route path="/signup" component={SignupPage} />
-      <Route path="/artist/dashboard" component={ArtistDashboard} />
-      <Route path="/marketplace" component={MarketplacePage} />
-      <Route path="/admin/royalties" component={AdminRoyaltiesPage} />
-      <Route path="/event-history" component={EventHistoryPage} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/dmca" component={DmcaPolicy} />
       <Route path="/setup-guide" component={SetupGuide} />

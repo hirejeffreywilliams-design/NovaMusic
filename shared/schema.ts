@@ -284,6 +284,206 @@ export const insertRoyaltyPayoutSchema = createInsertSchema(royaltyPayouts).omit
 export type InsertRoyaltyPayout = z.infer<typeof insertRoyaltyPayoutSchema>;
 export type RoyaltyPayout = typeof royaltyPayouts.$inferSelect;
 
+// ═══════════════════════════════════════════════════════════
+// Playlists
+// ═══════════════════════════════════════════════════════════
+export const playlists = pgTable("playlists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  coverUrl: text("cover_url"),
+  visibility: text("visibility").notNull().default("private"), // public | private | collaborative
+  trackCount: integer("track_count").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const insertPlaylistSchema = createInsertSchema(playlists).omit({ id: true, trackCount: true });
+export type InsertPlaylist = z.infer<typeof insertPlaylistSchema>;
+export type Playlist = typeof playlists.$inferSelect;
+
+export const playlistTracks = pgTable("playlist_tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  playlistId: varchar("playlist_id").notNull(),
+  trackId: varchar("track_id").notNull(),
+  position: integer("position").notNull().default(0),
+  addedBy: varchar("added_by"),
+  addedAt: text("added_at").notNull(),
+});
+
+export const insertPlaylistTrackSchema = createInsertSchema(playlistTracks).omit({ id: true });
+export type InsertPlaylistTrack = z.infer<typeof insertPlaylistTrackSchema>;
+export type PlaylistTrack = typeof playlistTracks.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════
+// Social: Followers, Likes, Comments
+// ═══════════════════════════════════════════════════════════
+export const followers = pgTable("followers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  followerId: varchar("follower_id").notNull(),
+  followingId: varchar("following_id").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertFollowerSchema = createInsertSchema(followers).omit({ id: true });
+export type InsertFollower = z.infer<typeof insertFollowerSchema>;
+export type Follower = typeof followers.$inferSelect;
+
+export const likes = pgTable("likes", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  trackId: varchar("track_id").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertLikeSchema = createInsertSchema(likes).omit({ id: true });
+export type InsertLike = z.infer<typeof insertLikeSchema>;
+export type Like = typeof likes.$inferSelect;
+
+export const comments = pgTable("comments", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  trackId: varchar("track_id").notNull(),
+  content: text("content").notNull(),
+  username: text("username").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertCommentSchema = createInsertSchema(comments).omit({ id: true });
+export type InsertComment = z.infer<typeof insertCommentSchema>;
+export type Comment = typeof comments.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════
+// Live Streams
+// ═══════════════════════════════════════════════════════════
+export const liveStreams = pgTable("live_streams", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artistId: varchar("artist_id").notNull(),
+  artistName: text("artist_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  status: text("status").notNull().default("scheduled"), // scheduled | live | ended
+  viewerCount: integer("viewer_count").notNull().default(0),
+  scheduledAt: text("scheduled_at"),
+  startedAt: text("started_at"),
+  endedAt: text("ended_at"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertLiveStreamSchema = createInsertSchema(liveStreams).omit({ id: true, viewerCount: true });
+export type InsertLiveStream = z.infer<typeof insertLiveStreamSchema>;
+export type LiveStream = typeof liveStreams.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════
+// Lyrics
+// ═══════════════════════════════════════════════════════════
+export const lyrics = pgTable("lyrics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  trackId: varchar("track_id").notNull(),
+  plainText: text("plain_text").notNull(),
+  syncedLines: jsonb("synced_lines"), // [{time: number, text: string}]
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertLyricsSchema = createInsertSchema(lyrics).omit({ id: true });
+export type InsertLyrics = z.infer<typeof insertLyricsSchema>;
+export type Lyrics = typeof lyrics.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════
+// Concerts / Events
+// ═══════════════════════════════════════════════════════════
+export const concerts = pgTable("concerts", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artistId: varchar("artist_id").notNull(),
+  artistName: text("artist_name").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  venue: text("venue").notNull(),
+  city: text("city").notNull(),
+  date: text("date").notNull(),
+  time: text("time"),
+  ticketUrl: text("ticket_url"),
+  imageUrl: text("image_url"),
+  price: real("price"),
+  capacity: integer("capacity"),
+  rsvpCount: integer("rsvp_count").notNull().default(0),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertConcertSchema = createInsertSchema(concerts).omit({ id: true, rsvpCount: true });
+export type InsertConcert = z.infer<typeof insertConcertSchema>;
+export type Concert = typeof concerts.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════
+// Merchandise Store
+// ═══════════════════════════════════════════════════════════
+export const merchandise = pgTable("merchandise", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  artistId: varchar("artist_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  price: real("price").notNull(),
+  imageUrl: text("image_url"),
+  category: text("category").notNull().default("other"), // apparel | vinyl | poster | digital | other
+  stock: integer("stock").notNull().default(0),
+  available: boolean("available").notNull().default(true),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertMerchandiseSchema = createInsertSchema(merchandise).omit({ id: true });
+export type InsertMerchandise = z.infer<typeof insertMerchandiseSchema>;
+export type Merchandise = typeof merchandise.$inferSelect;
+
+export const merchOrders = pgTable("merch_orders", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  merchId: varchar("merch_id").notNull(),
+  quantity: integer("quantity").notNull().default(1),
+  totalPrice: real("total_price").notNull(),
+  status: text("status").notNull().default("pending"), // pending | shipped | delivered | cancelled
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertMerchOrderSchema = createInsertSchema(merchOrders).omit({ id: true });
+export type InsertMerchOrder = z.infer<typeof insertMerchOrderSchema>;
+export type MerchOrder = typeof merchOrders.$inferSelect;
+
+// ═══════════════════════════════════════════════════════════
+// Music Production: Beats & Samples
+// ═══════════════════════════════════════════════════════════
+export const beats = pgTable("beats", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull(),
+  name: text("name").notNull(),
+  bpm: integer("bpm").notNull().default(120),
+  key: text("key"),
+  genre: text("genre"),
+  pattern: jsonb("pattern").notNull(), // grid pattern data
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull(),
+});
+
+export const insertBeatSchema = createInsertSchema(beats).omit({ id: true });
+export type InsertBeat = z.infer<typeof insertBeatSchema>;
+export type Beat = typeof beats.$inferSelect;
+
+export const samples = pgTable("samples", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  category: text("category").notNull(), // drums | bass | synth | fx | vocal
+  fileUrl: text("file_url").notNull(),
+  duration: real("duration"),
+  bpm: integer("bpm"),
+  key: text("key"),
+  tags: text("tags"),
+  createdAt: text("created_at").notNull(),
+});
+
+export const insertSampleSchema = createInsertSchema(samples).omit({ id: true });
+export type InsertSample = z.infer<typeof insertSampleSchema>;
+export type Sample = typeof samples.$inferSelect;
+
 // Chat conversations and messages (used by replit_integrations/chat)
 export const conversations = pgTable("conversations", {
   id: integer("id").primaryKey().generatedAlwaysAsIdentity(),
