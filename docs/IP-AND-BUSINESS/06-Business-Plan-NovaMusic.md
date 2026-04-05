@@ -241,7 +241,7 @@ Platform earns 15% on all crowd micropayments (priority requests, shoutouts, tip
 | Year 1 | 2,000 | $15 | $4,500 |
 | Year 2 | 8,000 | $25 | $30,000 |
 | Year 3 | 25,000 | $40 | $150,000 |
-| Year 4 | 65,000 | $60 | $585,000 |
+| Year 4 | 65,000 | $60 | $854,754 |
 | Year 5 | 150,000 | $80 | $1.8M |
 
 ### Cost Structure
