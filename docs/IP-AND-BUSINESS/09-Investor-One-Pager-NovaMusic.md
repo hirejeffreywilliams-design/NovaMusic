@@ -1,5 +1,12 @@
 # INVESTOR ONE-PAGER
 
+> **OMNIVEX ECOSYSTEM UPDATE — April 2026**
+> This platform is part of the OmniDLOS/Omnivex ecosystem comprising 13 platforms,
+> 62 patentable inventions, 117 patent documents (47 PPAs + 50 NPAs + 20 Design Patents),
+> 186+ trademarks, and 854,754+ lines of code. Combined ecosystem valuation: $380M-$775M.
+
+
+
 **NovaMusic — Social AI Music Experience Platform**
 
 **Owner:** Jeffrey W. Williams / Jeffrey W. Williams LLC | **Entity:** OmniDLOS Holdings | **Date:** April 4, 2026
